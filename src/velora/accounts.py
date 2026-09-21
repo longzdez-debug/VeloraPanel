@@ -11,6 +11,9 @@ class AccountProfile:
     walkbot: bool = True
     executable: str = ""
     launch_args: list[str] = field(default_factory=list)
+    route_map: str | None = None
+    route_start: str | None = None
+    route_goal: str | None = None
 
 class AccountStore:
     def __init__(self, path):
@@ -35,6 +38,9 @@ class AccountStore:
                 walkbot=bool(item.get("walkbot", True)),
                 executable=str(item.get("executable") or ""),
                 launch_args=[str(x) for x in args],
+                route_map=str(item["route_map"]) if item.get("route_map") else None,
+                route_start=str(item["route_start"]) if item.get("route_start") else None,
+                route_goal=str(item["route_goal"]) if item.get("route_goal") else None,
             ))
         return result
 
