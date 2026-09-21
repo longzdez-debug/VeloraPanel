@@ -36,6 +36,8 @@ class Supervisor:
         self.scheduler = Scheduler(max_concurrent=getattr(self.config, "max_concurrent_accounts", 1))
         self.lobbies = LobbyManager()
         self.stats = StatsStore()
+        self.stats_store = JsonStore(f"{self.config.data_dir}/stats.json")
+        self.stats.load_snapshot(self.stats_store.load([]))
         self.runtime_store = JsonStore(f"{self.config.data_dir}/runtime.json")
         self.orchestrator = FarmOrchestrator(self)
         self.scheduler.load_snapshot(self.runtime_store.load("scheduler", []))
@@ -106,6 +108,7 @@ class Supervisor:
         self.farm_store.save(self.farm.snapshot())
         self.runtime_store.save("scheduler", self.scheduler.snapshot())
         self.runtime_store.save("orchestrator", self.orchestrator.snapshot())
+        self.stats_store.save(self.stats.snapshot())
 
     def create_batch(self, batch_id, account_ids, mode="manual", target_xp=None, repeat=False, max_matches=None):
         result=self.farm.create_batch(batch_id, list(account_ids), mode=mode, target_xp=target_xp, repeat=repeat, max_matches=max_matches); self._save_farm(); return result
@@ -127,6 +130,13 @@ class Supervisor:
                     pass
             raise
         self.farm.mark_ready(batch_id)
+        for account_id in batch.account_ids:
+            state = self.pool.farm[account_id]
+            state.xp_before = self.stats.get(account_id).xp
+            state.xp_after = state.xp_before
+            account = self.get_account(account_id)
+            if account is not None:
+                account.last_xp = None
         self._save_farm()
         return batch
 
