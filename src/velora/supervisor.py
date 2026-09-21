@@ -7,6 +7,7 @@ from .gsi import GsiServer
 from .process import ProcessSupervisor
 from .launcher import Cs2Launcher
 from .model import AccountState
+from .farm import BatchState
 from .routes import RouteStore
 from .storage import JsonStore
 from .scheduler import Job, Scheduler
@@ -206,8 +207,19 @@ class Supervisor:
 
     def emergency_stop(self):
         self.kill_switch = True
+        for batch in list(self.farm.batches.values()):
+            if batch.state not in (BatchState.FINISHED, BatchState.STOPPING, BatchState.IDLE):
+                try:
+                    self.stop_batch(batch.id)
+                except Exception as exc:
+                    batch.errors.append(f"emergency stop failed: {exc}")
         for a in self.accounts:
+            try:
+                self.stop_account(a.id)
+            except Exception as exc:
+                a.errors.append(f"emergency stop failed: {exc}")
             a.walkbot.emergency_stop()
+        self._save_farm()
 
     def clear_kill_switch(self):
         self.kill_switch = False
@@ -243,6 +255,7 @@ class Supervisor:
             if a.fsm.state != AccountState.ERROR:
                 a.fsm.dispatch("error")
             a.walkbot.stop()
+            a.stop()
             raise
 
     def stop_account(self, account_id):
