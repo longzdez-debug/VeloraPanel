@@ -36,7 +36,6 @@ def test_delete_terminal_batch_removes_runtime_and_persists(tmp_path):
     assert "b" not in restored.farm.batches
 
 
-
 def test_direct_farming_recovery_claim_is_not_double_acquired(tmp_path):
     sup = Supervisor(Config(data_dir=str(tmp_path)))
     account = SimpleNamespace(
@@ -50,9 +49,11 @@ def test_direct_farming_recovery_claim_is_not_double_acquired(tmp_path):
     batch.state = BatchState.FARMING
     from velora.orchestrator import BatchRuntime
     sup.orchestrator.runtime["b"] = BatchRuntime("b", match_key=("de_dust2", 1, 1))
-    sup.start_account = lambda account_id: account_id
+    sup.start_account = lambda account_id: sup.resources.start_account(account_id) or account_id
     sup.recover_batch("b")
     assert sup.orchestrator.runtime["b"].recovery_claimed is True
+    assert sup.resources.snapshot()["active_accounts"] == 1
+    sup.recover_batch("b")
     assert sup.resources.snapshot()["active_accounts"] == 1
 
 
@@ -61,7 +62,7 @@ def test_remove_account_clears_window_guard(tmp_path):
     account = SimpleNamespace(
         id="a", enabled=True, process_id=None,
         fsm=SimpleNamespace(state=AccountState.OFFLINE),
-        walkbot=SimpleNamespace(stop=lambda: None, replan=None),
+        walkbot=SimpleNamespace(stop=lambda pid: None),
         stop=lambda: None,
     )
     guard = SimpleNamespace(bind=lambda pid: None)
