@@ -1,7 +1,6 @@
 from __future__ import annotations
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 import random
-from .navigation import NavGraph, NavigationGoal
 from .routes import Node, RouteGraph
 
 @dataclass(frozen=True)
@@ -29,7 +28,9 @@ class RouteDatabase:
         self._random = random.Random(self.config.seed)
 
     def add(self, route: RouteEntry):
-        self.routes.setdefault(route.map_name, []).append(route)
+        bucket = self.routes.setdefault(route.map_name, [])
+        bucket[:] = [item for item in bucket if item.route_id != route.route_id]
+        bucket.append(route)
 
     def candidates(self, map_name: str, tags=()):
         required = set(tags)
