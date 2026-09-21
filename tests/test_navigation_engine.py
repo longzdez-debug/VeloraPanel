@@ -3,8 +3,10 @@ def test_decision_engine_never_emits_input():
     from velora.navigation import NavigationGoal
     from velora.world import WorldModel, ObservationValue
 
+    from time import monotonic
+
     world = WorldModel()
-    world.update_localization(position=ObservationValue((1,2,0),1.0,"gsi",0.95), status="localized")
+    world.update_localization(position=ObservationValue((1,2,0),monotonic(),"gsi",0.95), status="localized")
     decision = DecisionEngine().decide(world.snapshot(), NavigationGoal("move", target_position=(5,2,0)))
     assert decision.action == "move_to_target"
     assert decision.goal.target_position == (5,2,0)
