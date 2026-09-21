@@ -214,7 +214,6 @@ class Supervisor:
             r = self.launcher.start(a.executable, a.launch_args, via_steam=self.config.launch_via_steam)
             a.process_id = r.identity.pid
             a.last_gsi = None
-            a.last_provider_timestamp = None
             a.executable = r.executable
             a.started_at = monotonic()
             guard = self.window_guards.get(a.id)
@@ -253,7 +252,6 @@ class Supervisor:
         a.process_id = None
         a.started_at = None
         a.last_gsi = None
-        a.last_provider_timestamp = None
         self.resources.stop_account(a.id)
         a.walkbot.emergency_stop()
         guard = self.window_guards.get(a.id)
