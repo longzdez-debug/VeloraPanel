@@ -33,3 +33,15 @@ def test_multiple_batches_are_resource_limited():
         assert False
     except RuntimeError:
         pass
+
+
+def test_stopped_batch_returns_to_idle_and_can_restart():
+    pool = AccountPool([A("a")])
+    farm = FarmManager(pool, ResourceManager(ResourceBudget(max_accounts=1, max_batches=1)))
+    batch = farm.create_batch("b", ["a"])
+    farm.start_batch("b")
+    farm.stop_batch("b")
+    assert batch.state == BatchState.IDLE
+    assert not farm.resources.active_batches
+    farm.start_batch("b")
+    assert batch.state == BatchState.STARTING
