@@ -26,6 +26,7 @@ class Account:
     last_match_result: bool | None = None
     last_score: int | None = None
     last_opponent_score: int | None = None
+    match_rounds: int = 0
 
     def __post_init__(self):
         self.fsm = StateMachine(AccountState.OFFLINE)
@@ -88,14 +89,17 @@ class Account:
         self.last_gsi = snap.received_at
         if snap.xp is not None:
             self.last_xp = snap.xp
-        phase = (snap.round_phase or snap.map_phase or "").lower()
-        if phase in {"gameover", "game_over", "postgame", "over"} and snap.team_score is not None and snap.opponent_score is not None and snap.team_score != snap.opponent_score:
+        # Match termination comes from the map phase. A round-level `over`
+        # is only a round boundary and must never end the account's match.
+        phase = (snap.map_phase or snap.round_phase or "").lower()
+        if phase in {"gameover", "game_over", "postgame"} and snap.team_score is not None and snap.opponent_score is not None and snap.team_score != snap.opponent_score:
             self.last_score = snap.team_score
             self.last_opponent_score = snap.opponent_score
             self.last_match_result = snap.team_score > snap.opponent_score
         self.on_ready()
         previous = self.match.state
-        self.match.update(snap.map_name, snap.round_phase or snap.map_phase, snap.round_number)
+        self.match.update(snap.map_name, snap.map_phase or snap.round_phase, snap.round_number)
+        self.match_rounds = self.match.rounds_seen
 
         if self.match.state == RoundState.GAME_OVER and self.fsm.state == AccountState.IN_MATCH:
             self.fsm.dispatch("game_over")
