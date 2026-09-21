@@ -46,3 +46,25 @@ def test_dashboard_account_kill_targets_process_stop():
 
     source = inspect.getsource(Dashboard.start)
     assert 'outer.s.stop_account(a.id)' in source
+
+
+def test_dashboard_event_timeline_surface_and_api_are_present():
+    from velora.dashboard import HTML
+
+    assert 'api/events?limit=100' in HTML
+    assert 'function renderEvents' in HTML
+    assert 'EVENT TIMELINE' in HTML
+    assert 'setInterval(loadEvents,2500)' in HTML
+
+
+def test_dashboard_event_buffer_is_bounded_and_structured():
+    from velora.dashboard import Dashboard
+    from types import SimpleNamespace
+
+    supervisor = SimpleNamespace(config=SimpleNamespace(data_dir='.'),)
+    dashboard = Dashboard(supervisor)
+    for i in range(600):
+        dashboard._event('test', f'event-{i}')
+    assert len(dashboard._events) == 500
+    assert dashboard._events[-1]['message'] == 'event-599'
+    assert dashboard._events[0]['id'] == 101
