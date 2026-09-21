@@ -4,6 +4,14 @@ def test_route_graph():
  g=RouteGraph();g.add(Node("a",0,0));g.add(Node("b",1,0));g.connect("a","b")
  assert g.validate()==[]
 
+def test_route_validation_reports_disconnected_nodes():
+    g=RouteGraph();g.add(Node("a",0,0));g.add(Node("b",1,0));g.add(Node("c",2,0));g.connect("a","b")
+    problems=g.validate()
+    assert "isolated:c" in problems
+    assert "unreachable:c" in problems
+    assert g.analysis()["valid"] is False
+
+
 def test_nearest_and_path_from_position():
  g=RouteGraph()
  for n in [Node("a",0,0),Node("b",100,0),Node("c",200,0)]:g.add(n)
