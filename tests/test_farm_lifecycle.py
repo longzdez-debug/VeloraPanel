@@ -255,7 +255,7 @@ def test_new_match_does_not_reuse_previous_result_or_score():
     assert account.last_opponent_score is None
 
 
-def test_gsi_freshness_uses_wall_clock():
+def test_gsi_freshness_uses_monotonic_clock():
     from velora.account import Account
     from velora.walkbot import WalkBot
     from time import monotonic
@@ -320,3 +320,14 @@ def test_account_ignores_out_of_order_gsi_provider_timestamp():
     assert account.last_gsi == 10.0
     assert account.match.map_name == "de_dust2"
     assert account.last_match_result is None
+
+
+def test_scheduler_uses_wall_clock_while_orchestrator_uses_monotonic():
+    from velora.scheduler import Job, Scheduler
+    from time import time, monotonic
+
+    scheduler = Scheduler()
+    now = time()
+    scheduler.add(Job("x", "a", next_run=now))
+    assert scheduler.next(now=now) is not None
+    assert monotonic() != now
