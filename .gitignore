@@ -1,27 +1,12 @@
-# Credentials and local runtime state
-secrets.dat
-logpass.txt
-runtime.json
-window_position.txt
-velora.db
-settings/settings.json
-settings/secrets.dat
-settings/logpass.txt
-settings/accs_list.txt
-
-# Local Python/Node environments and caches
 __pycache__/
 *.py[cod]
-node_modules/
-
-# Build output and local tooling
-build/
+.venv/
+.pytest_cache/
+.ruff_cache/
 dist/
-*.spec
-handle.exe
-Compiler to exe.txt
-
-# Generated reports and local state
-report.txt
-report_data.json
-level.json
+build/
+*.egg-info/
+data/
+logs/
+*.sqlite3
+.env
