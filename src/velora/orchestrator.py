@@ -143,7 +143,21 @@ class FarmOrchestrator:
         if now < runtime.next_retry or runtime.retries > self.max_retries:
             return False
         try:
+            # A retry is the same logical farm batch. Preserve its XP baseline
+            # and accumulated progress while restarting the external processes.
+            xp_progress = {
+                account_id: (
+                    self.s.pool.farm[account_id].xp_before,
+                    self.s.pool.farm[account_id].xp_after,
+                )
+                for account_id in batch.account_ids
+                if account_id in self.s.pool.farm
+            }
             self.s.start_batch(batch.id)
+            for account_id, (xp_before, xp_after) in xp_progress.items():
+                state = self.s.pool.farm[account_id]
+                state.xp_before = xp_before
+                state.xp_after = xp_after
             runtime.ready.clear()
             runtime.game_over_seen.clear()
             runtime.match_key = None
