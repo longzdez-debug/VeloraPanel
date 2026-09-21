@@ -29,6 +29,9 @@ class TelemetryContext:
         self.correlation_id = correlation_id or str(uuid.uuid4())
         self.started_at = monotonic()
 
+    def elapsed(self):
+        return max(0.0, monotonic() - self.started_at)
+
     def new_correlation(self):
         self.correlation_id = str(uuid.uuid4())
         self.started_at = monotonic()
