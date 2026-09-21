@@ -6,34 +6,46 @@ from .input import NullInput
 class WindowsInput(NullInput):
     _user32 = ctypes.windll.user32 if hasattr(ctypes, "windll") else None
     _map = {"forward": 0x57, "back": 0x53, "left": 0x41, "right": 0x44}
+    _MOUSE_MOVE = 0x0001
 
-    def __init__(self, enabled: bool = False, guard=None):
+    def __init__(self, enabled: bool = False, guard=None, mouse_turn_counts: int = 320):
         super().__init__()
         self.enabled = bool(enabled)
         self.guard = guard
+        self.mouse_turn_counts = max(20, int(mouse_turn_counts))
         self._down: set[str] = set()
 
     def _key(self, code: int, down: bool) -> bool:
         if not self.enabled or self._user32 is None:
             return False
-
         class KI(ctypes.Structure):
             _fields_ = [
-                ("wVk", wintypes.WORD),
-                ("wScan", wintypes.WORD),
-                ("dwFlags", wintypes.DWORD),
-                ("time", wintypes.DWORD),
+                ("wVk", wintypes.WORD), ("wScan", wintypes.WORD),
+                ("dwFlags", wintypes.DWORD), ("time", wintypes.DWORD),
                 ("dwExtraInfo", ctypes.POINTER(ctypes.c_ulong)),
             ]
-
         class II(ctypes.Union):
             _fields_ = [("ki", KI)]
-
         class IN(ctypes.Structure):
             _fields_ = [("type", wintypes.DWORD), ("ii", II)]
-
         flags = 0 if down else 2
         event = IN(1, II(KI(code, 0, flags, 0, None)))
+        return bool(self._user32.SendInput(1, ctypes.byref(event), ctypes.sizeof(IN)))
+
+    def _mouse(self, dx: int) -> bool:
+        if not self.enabled or self._user32 is None or dx == 0:
+            return False
+        class MI(ctypes.Structure):
+            _fields_ = [
+                ("dx", wintypes.LONG), ("dy", wintypes.LONG),
+                ("mouseData", wintypes.DWORD), ("dwFlags", wintypes.DWORD),
+                ("time", wintypes.DWORD), ("dwExtraInfo", ctypes.POINTER(ctypes.c_ulong)),
+            ]
+        class II(ctypes.Union):
+            _fields_ = [("mi", MI)]
+        class IN(ctypes.Structure):
+            _fields_ = [("type", wintypes.DWORD), ("ii", II)]
+        event = IN(0, II(mi=MI(int(dx), 0, 0, self._MOUSE_MOVE, 0, None)))
         return bool(self._user32.SendInput(1, ctypes.byref(event), ctypes.sizeof(IN)))
 
     def _permitted(self) -> bool:
@@ -51,7 +63,6 @@ class WindowsInput(NullInput):
             self.release_all()
             super().release_all()
             return
-
         super().move(forward, back, left, right)
         wanted = {
             k for k, v in (
@@ -65,6 +76,14 @@ class WindowsInput(NullInput):
         for k in wanted:
             if k not in self._down and self._key(self._map[k], True):
                 self._down.add(k)
+
+    def turn(self, amount):
+        if not self._permitted():
+            self.release_all()
+            return
+        value = max(-1.0, min(1.0, float(amount)))
+        dx = int(round(value * self.mouse_turn_counts))
+        self._mouse(dx)
 
     def release_all(self):
         for k in list(self._down):
