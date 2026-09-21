@@ -2,12 +2,13 @@ from types import SimpleNamespace
 
 from velora.config import Config
 from velora.farm import BatchState
+from velora.model import AccountState
 from velora.supervisor import Supervisor
 
 
 def test_shutdown_does_not_persist_active_farming_batch(tmp_path):
     sup = Supervisor(Config(data_dir=str(tmp_path)))
-    account = SimpleNamespace(id="a", enabled=True)
+    account = SimpleNamespace(id="a", enabled=True, process_id=None, fsm=SimpleNamespace(state=AccountState.OFFLINE), walkbot=SimpleNamespace(stop=lambda: None, replan=None), stop=lambda: None)
     sup.add_account(account)
     batch = sup.create_batch("b", ["a"], mode="manual")
     batch.state = BatchState.FARMING
