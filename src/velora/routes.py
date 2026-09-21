@@ -1,6 +1,6 @@
 from __future__ import annotations
 from dataclasses import asdict,dataclass
-from math import dist,hypot
+from math import dist,hypot,isfinite
 import heapq
 from threading import RLock
 
@@ -32,12 +32,37 @@ class RouteGraph:
   self.edges[a].add(b); self.edges[b].add(a)
 
  def validate(self)->list[str]:
-  problems=[f"isolated:{n}" for n,e in self.edges.items() if not e and len(self.nodes)>1]
+  problems=[]
+  if not self.nodes:
+   return ["empty_route"]
+  for n,node in self.nodes.items():
+   if not str(n).strip(): problems.append("empty_node_id")
+   if not all(isfinite(float(v)) for v in (node.x,node.y,node.z)): problems.append(f"invalid_coordinates:{n}")
+  problems.extend(f"isolated:{n}" for n,e in self.edges.items() if not e and len(self.nodes)>1)
   for a,edges in self.edges.items():
+   if a not in self.nodes: problems.append(f"missing_source:{a}")
    for b in edges:
     if b not in self.nodes: problems.append(f"missing:{a}->{b}")
     elif a not in self.edges.get(b,set()): problems.append(f"asymmetric:{a}->{b}")
-  return problems
+  if self.nodes:
+   start=next(iter(self.nodes))
+   seen={start}; stack=[start]
+   while stack:
+    u=stack.pop()
+    for v in self.edges.get(u,set()):
+     if v in self.nodes and v not in seen: seen.add(v);stack.append(v)
+   problems.extend(f"unreachable:{n}" for n in self.nodes if n not in seen)
+  return sorted(set(problems))
+
+ def analysis(self,start=None,goal=None):
+  problems=self.validate()
+  result={"valid":not problems,"problems":problems,"node_count":len(self.nodes),"edge_count":sum(len(v) for v in self.edges.values())//2}
+  if start and goal and start in self.nodes and goal in self.nodes and not problems:
+   path=self.shortest_path(start,goal)
+   result["path_exists"]=bool(path)
+   result["path_length"]=len(path)
+   result["path"]=[n.id for n in path]
+  return result
 
  def nearest_node(self,position:tuple[float,float,float]|tuple[float,float],max_distance:float|None=None)->Node|None:
   if not self.nodes: return None
