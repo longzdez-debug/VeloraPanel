@@ -13,7 +13,9 @@ class Supervisor:
   self.running=True;self.gsi.on_snapshot(self.on_gsi);self.gsi.start();delay=1/max(self.config.tick_hz,1)
   try:
    while self.running:
-    for a in self.accounts:a.walkbot.tick()
+    for a in self.accounts:
+     pos=(a.walkbot.last_position)
+     a.walkbot.tick(pos)
     await asyncio.sleep(delay)
   finally:self.gsi.stop()
  def stop(self):
