@@ -1,11 +1,48 @@
 from __future__ import annotations
-from dataclasses import dataclass,asdict
+
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from .steam import find_steam,find_cs2
+import socket
+
+from .steam import find_cs2, find_steam
+
+
 @dataclass(frozen=True)
 class Check:
- name:str;ok:bool;detail:str
-def run_checks(data_dir="data"):
- steam=find_steam();cs2=find_cs2(steam)
- return [Check("python",True,"runtime available"),Check("steam",steam is not None,str(steam or "not found")),Check("cs2",cs2 is not None,str(cs2 or "not found")),Check("data_dir",Path(data_dir).exists(),str(Path(data_dir).resolve()))]
-def as_dict(checks):return [asdict(x) for x in checks]
+    name: str
+    ok: bool
+    detail: str
+
+
+def _port_available(host: str, port: int) -> tuple[bool, str]:
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        sock.settimeout(0.25)
+        result = sock.connect_ex((host, port))
+        if result == 0:
+            return False, f"{host}:{port} is already in use"
+        return True, f"{host}:{port} is available"
+    except OSError as exc:
+        return False, str(exc)
+    finally:
+        sock.close()
+
+
+def run_checks(data_dir="data", gsi_port=27100, dashboard_port=8765, host="127.0.0.1"):
+    steam = find_steam()
+    cs2 = find_cs2(steam)
+    data_path = Path(data_dir)
+    gsi_ok, gsi_detail = _port_available(host, int(gsi_port))
+    dashboard_ok, dashboard_detail = _port_available(host, int(dashboard_port))
+    return [
+        Check("python", True, "runtime available"),
+        Check("steam", steam is not None, str(steam or "not found")),
+        Check("cs2", cs2 is not None, str(cs2 or "not found")),
+        Check("data_dir", data_path.exists(), str(data_path.resolve())),
+        Check("gsi_port", gsi_ok, gsi_detail),
+        Check("dashboard_port", dashboard_ok, dashboard_detail),
+    ]
+
+
+def as_dict(checks):
+    return [asdict(x) for x in checks]
