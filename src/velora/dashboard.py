@@ -31,7 +31,7 @@ HTML="""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="v
 <script>
 const $=id=>document.getElementById(id);let route={nodes:[],edges:[]},lastStatus=null,lastDiag=null;
 async function api(u,m='GET',body){const q={method:m,headers:{'Content-Type':'application/json'}};if(body!==undefined)q.body=JSON.stringify(body);const r=await fetch(u,q);let j={};try{j=await r.json()}catch{}if(!r.ok)throw Error(j.error||r.statusText||'Request failed');return j}
-function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}function jsesc(v){return String(v??'').replace(/\\/g,'\\\\').replace(/'/g,"\\'")}
+function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}function jsesc(v){return String(v??'').replace(/\\\\/g,'\\\\\\\\').replace(/'/g,"\\'")}
 function toast(t,bad=false){const e=document.createElement('div');e.className='toast';e.textContent=t;if(bad)e.style.borderColor='#71313d';$('toastbox').appendChild(e);setTimeout(()=>e.remove(),3500)}
 function confirmAction(t,p,fn){$('modalTitle').textContent=t;$('modalText').textContent=p;$('modal').classList.add('open');$('modalOk').onclick=async()=>{closeModal();await fn()}}function closeModal(){$('modal').classList.remove('open')}
 function go(p){document.querySelectorAll('.page').forEach(x=>x.classList.toggle('active',x.id===p));document.querySelectorAll('.nav button').forEach(x=>x.classList.toggle('active',x.dataset.page===p));const b=document.querySelector('.nav button[data-page="'+p+'"]');$('pageTitle').textContent=b?b.textContent.trim():p}
