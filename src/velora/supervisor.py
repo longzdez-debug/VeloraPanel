@@ -67,6 +67,16 @@ class Supervisor:
         if a is None:
             raise KeyError(account_id)
         from .accounts import AccountProfile
+        current = next((p for p in self.account_store.load() if p.id == account_id), None)
+        route_map = getattr(a, "route_map", None)
+        route_start = getattr(a, "route_start", None)
+        route_goal = getattr(a, "route_goal", None)
+        if route_map is None and current is not None:
+            route_map = current.route_map
+        if route_start is None and current is not None:
+            route_start = current.route_start
+        if route_goal is None and current is not None:
+            route_goal = current.route_goal
         self.account_store.upsert(AccountProfile(
             id=a.id,
             name=a.name,
@@ -75,9 +85,9 @@ class Supervisor:
             walkbot=bool(getattr(a.walkbot, "enabled", True)),
             executable=a.executable,
             launch_args=list(a.launch_args),
-            route_map=getattr(a, "route_map", None),
-            route_start=getattr(a, "route_start", None),
-            route_goal=getattr(a, "route_goal", None),
+            route_map=route_map,
+            route_start=route_start,
+            route_goal=route_goal,
         ))
 
     def add_account(self, a):
