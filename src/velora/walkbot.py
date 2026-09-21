@@ -6,6 +6,10 @@ from typing import Callable
 from .fsm import StateMachine
 from .model import GsiSnapshot,WalkState
 from .movement import Navigator
+from .decision import DecisionEngine
+from .steering import Steering
+from .movement_controller import MovementController
+from .movement_intent import MovementIntent
 from .world import WorldModel
 from .gsi_normalizer import GsiNormalizer
 from .replay import ReplaySession
@@ -39,7 +43,7 @@ class WalkBot:
   self.last_position=None;self.last_forward=None;self.last_gsi=None
   self.progress_position=None;self.last_progress=monotonic();self.recoveries=0
   self.recovery_until=0.0;self.recovery_started=0.0
-  self.navigator=Navigator();self.enabled=True
+  self.navigator=Navigator();self.steering=Steering();self.movement_controller=MovementController(input_adapter);self.decision_engine=DecisionEngine();self.enabled=True
   self.world=WorldModel()
   self.gsi_normalizer=GsiNormalizer()
   self.replay=replay
@@ -171,7 +175,18 @@ class WalkBot:
    self.input.release_all();self.recoveries+=1;self.recovery_reason="stuck"
    if self.recoveries>self.cfg.max_recoveries:self.stop();return
    self.fsm.dispatch("stuck");self.fsm.dispatch("recover");self.recovery_started=now;self.recovery_until=now+self.cfg.recovery_seconds;return
-  c=self.navigator.command(position,(target.x,target.y),self.last_forward)
+  decision=self.decision_engine.decide(self.world.snapshot(), self.navigation_goal)
+  if decision.action != "move_to_target":
+   self.movement_controller.stop()
+   self.last_command={"forward":False,"back":False,"left":False,"right":False}
+   return
+  if self.last_forward is not None:
+   intent=self.steering.steer(position,self.last_forward,(target.x,target.y,target.z))
+   c=self.movement_controller.apply(intent)
+  else:
+   legacy=self.navigator.command(position,(target.x,target.y),self.last_forward)
+   c=self.movement_controller.apply(MovementIntent(
+    forward=1.0 if legacy.forward else -1.0 if legacy.back else 0.0,
+    strafe=1.0 if legacy.right else -1.0 if legacy.left else 0.0))
   self.last_command={"forward":bool(c.forward),"back":bool(c.back),"left":bool(c.left),"right":bool(c.right)}
-  self.input.move(c.forward,c.back,c.left,c.right)
-  if self.replay:self.replay.record("WalkBot.MovementCommand",now,{"forward":bool(c.forward),"back":bool(c.back),"left":bool(c.left),"right":bool(c.right)})
+  if self.replay:self.replay.record("WalkBot.MovementCommand",now,self.last_command | {"decision":decision.action,"reason":decision.reason})
