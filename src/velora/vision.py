@@ -77,6 +77,7 @@ class VisionPipeline:
         elif not self.scheduler.should_run_light(frame.metadata.timestamp):
             return None
         result = self.backend.process(frame)
+        self.scheduler.record_vision()
         if self.world is not None:
             confidence = max((o.confidence for o in result.observations), default=0.0)
             self.world.update_vision(frame_id=result.frame_id, timestamp=result.timestamp, observation_count=len(result.observations), confidence=confidence)
