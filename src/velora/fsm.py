@@ -2,7 +2,6 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from time import time
-from dataclasses import dataclass
 from typing import Generic,TypeVar
 S=TypeVar("S"); E=TypeVar("E")
 @dataclass(frozen=True)
