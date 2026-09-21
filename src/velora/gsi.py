@@ -78,10 +78,42 @@ class GsiServer:
                             break
                         except (TypeError, ValueError):
                             pass
+                player_team = player.get("team") or state.get("team")
+                if isinstance(player_team, str):
+                    player_team = player_team.upper()
+                team_score = opponent_score = None
+                teams = {
+                    "CT": map_data.get("team_ct"),
+                    "T": map_data.get("team_t"),
+                }
+                if player_team in teams:
+                    own = teams.get(player_team)
+                    other = teams.get("T" if player_team == "CT" else "CT")
+                    try:
+                        team_score = int(own.get("score")) if isinstance(own, dict) and own.get("score") is not None else None
+                    except (TypeError, ValueError):
+                        team_score = None
+                    try:
+                        opponent_score = int(other.get("score")) if isinstance(other, dict) and other.get("score") is not None else None
+                    except (TypeError, ValueError):
+                        opponent_score = None
                 snap = GsiSnapshot(
-                    time.monotonic(), ts, map_data.get("name"), map_data.get("phase"),
-                    round_data.get("phase"), player.get("activity"), state.get("health"),
-                    steam_id, position, forward, rn, xp, data
+                    received_at=time.monotonic(),
+                    provider_timestamp=ts,
+                    map_name=map_data.get("name"),
+                    map_phase=map_data.get("phase"),
+                    round_phase=round_data.get("phase"),
+                    activity=player.get("activity"),
+                    health=state.get("health"),
+                    steam_id=steam_id,
+                    position=position,
+                    forward=forward,
+                    round_number=rn,
+                    xp=xp,
+                    player_team=player_team,
+                    team_score=team_score,
+                    opponent_score=opponent_score,
+                    raw=data,
                 )
                 if outer._on_snapshot:
                     try:
