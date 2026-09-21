@@ -86,7 +86,7 @@ class WalkBot:
  def on_gsi(self,snap:GsiSnapshot):
   self.last_gsi=monotonic();self.last_position=snap.position or self.last_position
   self.last_forward=snap.forward or self.last_forward
-  if snap.activity!="playing" or (snap.health is not None and snap.health<=0):
+  if (snap.round_phase or "").lower() not in {"live","playing"} or (snap.activity or "").lower() not in {"playing","live"} or (snap.health is not None and snap.health<=0):
    self.input.release_all();return
   if self.fsm.state==WalkState.WAITING_FOR_GAME:self.fsm.dispatch("live")
   if self.fsm.state==WalkState.WAITING_FOR_SPAWN and (snap.health or 0)>0:self.fsm.dispatch("spawn")
