@@ -10,6 +10,7 @@ from velora.input import NullInput
 from velora.log import configure_logging
 from velora.supervisor import Supervisor
 from velora.walkbot import WalkBot
+from velora.matchmaking import NullMatchmaking, WindowsMatchmaking
 from velora.window_guard import Cs2WindowGuard
 from velora.windows import WindowsInput
 
@@ -66,6 +67,10 @@ def main():
         account.route_start = getattr(p, "route_start", None)
         account.route_goal = getattr(p, "route_goal", None)
         sup.add_account(account)
+        if c.input_enabled:
+            sup.bind_matchmaking(p.id, WindowsMatchmaking(adapter))
+        else:
+            sup.bind_matchmaking(p.id, NullMatchmaking())
         if account.route_map and account.route_goal:
             try:
                 sup.set_route(account.id, account.route_map, account.route_start or account.route_goal, account.route_goal)
