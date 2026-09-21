@@ -74,6 +74,10 @@ class WalkBot:
  def emergency_stop(self):
   self.enabled=False;self.movement_controller.stop()
 
+ def stop_movement(self):
+  """Stop external movement without changing the WalkBot lifecycle state."""
+  self.movement_controller.stop()
+
  def stop(self):
   self.enabled=False;self.movement_controller.stop()
   if self.fsm.state!=WalkState.DISABLED:self.fsm.dispatch("stop")
