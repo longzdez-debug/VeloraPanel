@@ -15,6 +15,8 @@ class MatchTracker:
     map_name: str | None = None
     round_number: int | None = None
     match_id: int = 0
+    rounds_seen: int = 0
+    last_counted_round: int | None = None
 
     def update(self, map_name, phase, round_number=None):
         previous = self.state
@@ -43,6 +45,12 @@ class MatchTracker:
             RoundState.UNKNOWN, RoundState.OVER, RoundState.GAME_OVER
         }:
             self.match_id += 1
+            self.rounds_seen = 0
+            self.last_counted_round = None
+
+        if self.round_number is not None and self.round_number != self.last_counted_round:
+            self.rounds_seen += 1
+            self.last_counted_round = self.round_number
         return self.state
 
     def reset(self):
