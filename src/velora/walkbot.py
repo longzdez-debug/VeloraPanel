@@ -110,6 +110,7 @@ class WalkBot:
   if self.fsm.state not in (WalkState.NAVIGATING,WalkState.ARRIVING) or not self.path:return
   position=position or self.last_position
   if position is None:return
+  self.last_position=position
   target=self.path[self.index];d=hypot(target.x-position[0],target.y-position[1])
   if d<=self.cfg.arrive_radius:
    self.input.release_all()
