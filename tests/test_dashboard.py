@@ -16,3 +16,16 @@ def test_dashboard_language_api_and_log_surface_are_present():
     assert 'api/logs?lines=500' in HTML
     assert 'option value="ru">RU' in HTML
     assert 'option value="en">EN' in HTML
+
+
+def test_dashboard_russian_localization_covers_ui_and_dynamic_surfaces():
+    from velora.dashboard import HTML
+
+    assert "Панель управления" in HTML
+    assert "Редактор маршрутов" in HTML
+    assert "АВАРИЙНАЯ ОСТАНОВКА" in HTML
+    assert "function localizeDom()" in HTML
+    assert "placeholder','title','aria-label'" in HTML
+    assert "No diagnostic data." in HTML
+    assert "No accounts." in HTML
+    assert "No batches." in HTML
