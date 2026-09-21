@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from math import sqrt
 from typing import Protocol
 from .screen import Frame
+from .vision_scheduler import VisionScheduler
 
 
 @dataclass(frozen=True)
@@ -62,12 +63,25 @@ class CpuVisionBackend:
 
 
 class VisionPipeline:
-    def __init__(self, backend: IVisionBackend, output=None):
+    def __init__(self, backend: IVisionBackend, output=None, scheduler: VisionScheduler | None = None):
         self.backend = backend
         self.output = output
+        self.scheduler = scheduler or VisionScheduler()
 
-    def process(self, frame: Frame) -> VisionResult:
+    def process(self, frame: Frame, heavy: bool = True) -> VisionResult | None:
+        if heavy:
+            if not self.scheduler.should_run_heavy(frame.metadata.timestamp):
+                return None
+        elif not self.scheduler.should_run_light(frame.metadata.timestamp):
+            return None
         result = self.backend.process(frame)
+        self.scheduler.stats = type(self.scheduler.stats)(
+            capture_frames=self.scheduler.stats.capture_frames + 1,
+            vision_frames=self.scheduler.stats.vision_frames + 1,
+            dropped_frames=self.scheduler.stats.dropped_frames,
+            last_capture_at=frame.metadata.timestamp,
+            last_vision_at=frame.metadata.timestamp,
+        )
         if self.output:
             self.output(result)
         return result
