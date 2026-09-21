@@ -25,6 +25,7 @@ class BatchRuntime:
     match_generation: dict[str, int] = field(default_factory=dict)
     accounted_match_key: tuple | None = None
     recovery_claimed: bool = False
+    round_progress: dict[str, int] = field(default_factory=dict)
 
 class FarmOrchestrator:
     def __init__(self, supervisor):
@@ -75,6 +76,7 @@ class FarmOrchestrator:
             return False
         runtime.match_key = (next(iter(maps)), next(iter(rounds)) if rounds else None, next(iter(generations)))
         runtime.match_started_at = time()
+        runtime.round_progress = {a.id: getattr(a, "match_rounds", 0) for a in accounts}
         return True
 
     def _target_reached(self, batch):
@@ -260,6 +262,7 @@ class FarmOrchestrator:
                             score=score,
                             opponent_score=opponent_score,
                             duration=duration,
+                            rounds=getattr(account, "match_rounds", runtime.round_progress.get(account_id, 0)) if account is not None else runtime.round_progress.get(account_id, 0),
                         )
                         state = self.s.pool.farm[account_id]
                         state.matches_played += 1
@@ -277,6 +280,7 @@ class FarmOrchestrator:
                     runtime.game_over_seen.clear()
                     runtime.match_key = None
                     runtime.match_started_at = None
+                    runtime.round_progress.clear()
                     runtime.match_generation.clear()
                     runtime.accounted_match_key = None
                     runtime.recovery_claimed = False
@@ -321,6 +325,7 @@ class FarmOrchestrator:
             "match_generation": dict(r.match_generation),
             "accounted_match_key": list(r.accounted_match_key) if r.accounted_match_key is not None else None,
             "recovery_claimed": r.recovery_claimed,
+            "round_progress": dict(r.round_progress),
         } for r in self.runtime.values()]
 
     def load_snapshot(self, items):
@@ -344,7 +349,8 @@ class FarmOrchestrator:
                     match_started_at=now - max(0.0, float(value.get("match_started_age", 0.0))) if value.get("match_started_age") else None,
                     match_generation={str(k): int(v) for k, v in value.get("match_generation", {}).items()},
                     accounted_match_key=tuple(value["accounted_match_key"]) if value.get("accounted_match_key") else None,
-                    recovery_claimed=False,
+                    recovery_claimed=bool(value.get("recovery_claimed", False)),
+                    round_progress={str(k): int(v) for k, v in value.get("round_progress", {}).items()},
                 )
             except (KeyError, TypeError, ValueError):
                 continue
