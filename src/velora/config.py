@@ -27,6 +27,9 @@ class Config:
     max_concurrent_accounts: int = 1
     max_parallel_batches: int = 1
     mouse_turn_counts: int = 320
+    auto_matchmaking: bool = True
+    matchmaking_mode: str = "deathmatch"
+    auto_fire: bool = False
 
     @classmethod
     def from_env(cls):
@@ -49,4 +52,7 @@ class Config:
             max(1, int(os.getenv("VELORA_MAX_CONCURRENT_ACCOUNTS", "1"))),
             max(1, int(os.getenv("VELORA_MAX_PARALLEL_BATCHES", "1"))),
             max(20, int(os.getenv("VELORA_MOUSE_TURN_COUNTS", "320"))),
+            _bool("VELORA_AUTO_MATCHMAKING", True),
+            os.getenv("VELORA_MATCHMAKING_MODE", "deathmatch").strip().lower(),
+            _bool("VELORA_AUTO_FIRE", False),
         )
