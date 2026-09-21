@@ -19,6 +19,7 @@ class BatchRuntime:
     game_over_seen: set[str] = field(default_factory=set)
     last_match_counted: int = 0
     ready_since: float | None = None
+    search_since: float | None = None
 
 
 class FarmOrchestrator:
@@ -137,7 +138,7 @@ class FarmOrchestrator:
                         changed = True
 
             if batch.director.state == MatchDirectorState.SEARCHING:
-                search_since = getattr(runtime, "search_since", None)
+                search_since = runtime.search_since
                 if search_since is None:
                     runtime.search_since = now
                     search_since = now
@@ -165,6 +166,12 @@ class FarmOrchestrator:
                 self.s.farm.finish_batch(batch.id, True)
                 changed = True
 
+            stale = [account.id for account in accounts if account.gsi_stale(getattr(self.s.config, "gsi_timeout", 8.0), now)]
+            if stale and batch.state == BatchState.FARMING:
+                self._fail(batch, "GSI heartbeat lost: " + ", ".join(stale), now)
+                changed = True
+                continue
+
             dead = [
                 account.id for account in accounts
                 if account.process_id is None or account.fsm.state == AccountState.ERROR
@@ -185,6 +192,7 @@ class FarmOrchestrator:
             "game_over_seen": sorted(r.game_over_seen),
             "last_match_counted": r.last_match_counted,
             "ready_age": max(0.0, now - r.ready_since) if r.ready_since else 0.0,
+            "search_age": max(0.0, now - r.search_since) if r.search_since else 0.0,
         } for r in self.runtime.values()]
 
     def load_snapshot(self, items):
@@ -202,6 +210,7 @@ class FarmOrchestrator:
                     game_over_seen=set(value.get("game_over_seen", [])),
                     last_match_counted=int(value.get("last_match_counted", 0)),
                     ready_since=now - ready_age if ready_age else None,
+                    search_since=now - max(0.0, float(value.get("search_age", 0.0))) if value.get("search_age") else None,
                 )
             except (KeyError, TypeError, ValueError):
                 continue
