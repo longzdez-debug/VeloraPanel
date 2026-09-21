@@ -34,9 +34,10 @@ def test_gsi_timeout_releases():
  assert i.last==(False,False,False,False)
 
 def test_live_gsi_drives_forward_input():
+ import time
  i=NullInput();w=WalkBot(i);w.start()
  w.on_gsi(GsiSnapshot(
-     0, activity="playing", health=100, map_name="de_dust2",
+     time.monotonic(), activity="playing", health=100, map_name="de_dust2",
      round_phase="live", position=(0,0,0), forward=(1,0,0),
  ))
  w.set_path([Waypoint("a",500,0)])
