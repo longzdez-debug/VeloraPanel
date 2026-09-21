@@ -13,6 +13,8 @@ from .scheduler import Job, Scheduler
 from .account_pool import AccountPool
 from .farm import FarmManager
 from .resource import ResourceBudget, ResourceManager
+from .lobby import LobbyManager
+from .stats import StatsStore
 
 @dataclass
 class Supervisor:
@@ -29,6 +31,8 @@ class Supervisor:
         self.resources = ResourceManager(ResourceBudget(max_accounts=getattr(self.config, "max_concurrent_accounts", 1), max_batches=getattr(self.config, "max_parallel_batches", 1)))
         self.farm = FarmManager(self.pool, self.resources)
         self.scheduler = Scheduler(max_concurrent=getattr(self.config, "max_concurrent_accounts", 1))
+        self.lobbies = LobbyManager()
+        self.stats = StatsStore()
         self.kill_switch = False
         self.window_guards = {}
 
@@ -74,6 +78,18 @@ class Supervisor:
             a.on_gsi(snap)
             if a.route_map and snap.map_name and snap.map_name != a.route_map:
                 a.walkbot.input.release_all()
+
+    def create_lobby(self, lobby_id, account_ids):
+        return self.lobbies.create(lobby_id, list(account_ids))
+
+    def ready_lobby(self, lobby_id, code=""):
+        return self.lobbies.ready(lobby_id, code)
+
+    def disband_lobby(self, lobby_id):
+        return self.lobbies.disband(lobby_id)
+
+    def shuffle_lobby(self, lobby_id, account_ids):
+        return self.lobbies.shuffle(lobby_id, list(account_ids))
 
     def create_batch(self, batch_id, account_ids, mode="manual", target_xp=None):
         return self.farm.create_batch(batch_id, list(account_ids), mode=mode, target_xp=target_xp)
