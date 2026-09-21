@@ -87,3 +87,20 @@ def test_gsi_routes_to_matching_steam_account_only():
     sup.on_gsi(GsiSnapshot(1.0, activity="playing", round_phase="live", health=100, map_name="de_dust2", steam_id="111"))
     assert a.last_gsi == 1.0
     assert b.last_gsi is None
+
+
+def test_repeat_batch_is_bounded():
+    from velora.account_pool import AccountPool
+    from velora.farm import FarmManager, BatchState
+    from velora.resource import ResourceBudget, ResourceManager
+
+    class A:
+        def __init__(self, id): self.id=id; self.enabled=True
+
+    pool=AccountPool([A("a")])
+    fm=FarmManager(pool, ResourceManager(ResourceBudget(max_accounts=1,max_batches=1)))
+    batch=fm.create_batch("r",["a"],"manual",repeat=True,max_matches=3)
+    assert batch.repeat is True
+    assert batch.max_matches == 3
+    fm.start_batch("r")
+    assert batch.state == BatchState.STARTING
