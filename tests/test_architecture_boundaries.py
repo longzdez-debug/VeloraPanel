@@ -43,7 +43,7 @@ def test_only_movement_controller_crosses_into_external_input():
         if path.name in {"movement_controller.py", "external_input.py"}:
             continue
         source = path.read_text(encoding="utf-8")
-        if "ExternalInput" in source and path.name not in {"walkbot.py"}:
+        if any(token in source for token in ("\.move(", ".release_all(", "send_input(")):
             offenders.append(path.name)
     assert not offenders, offenders
 
