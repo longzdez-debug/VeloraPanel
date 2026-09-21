@@ -29,6 +29,10 @@ HTML="""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="v
 <section id=logs class=page><div class=hero><div><div class=eyebrow>SYSTEM</div><h1>Logs</h1><p>Runtime log stream for diagnosis.</p></div><button onclick=loadLogs>↻ Refresh</button></div><div class=panel><div class=ph><b>VELORA.LOG</b><small id=logMeta>—</small></div><div class=pb><div id=logsBox class=log>Waiting…</div></div></div></section>
 </main></div></div><div id=modal class=modal><div><h3 id=modalTitle>Confirm</h3><p id=modalText></p><div class=modal-actions><button onclick=closeModal>CANCEL</button><button id=modalOk class=danger>CONFIRM</button></div></div></div><div id=toastbox class=toastbox></div>
 <script>
+window.addEventListener('error',function(e){try{fetch('/api/client-error',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:e.message||'Script load error',source:e.filename||'',line:e.lineno||0,column:e.colno||0})})}catch(_){}});
+window.addEventListener('unhandledrejection',function(e){try{fetch('/api/client-error',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:e.reason&&e.reason.stack||String(e.reason||'Unhandled rejection')})})}catch(_){}});
+fetch('/api/client-error',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:'CLIENT BOOT SCRIPT REACHED'})}).catch(function(){});
+</script><script>
 const $=id=>document.getElementById(id);let route={nodes:[],edges:[]},lastStatus=null,lastDiag=null;
 function clientError(message,source='',line=0,column=0){try{fetch('/api/client-error',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:String(message||'Unknown client error'),source:String(source||''),line:Number(line)||0,column:Number(column)||0})})}catch(_){}}
 window.addEventListener('error',e=>clientError(e.message,e.filename,e.lineno,e.colno));
