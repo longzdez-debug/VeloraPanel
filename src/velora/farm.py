@@ -119,7 +119,7 @@ class FarmManager:
     def stop_batch(self, batch_id: str) -> FarmBatch:
         batch = self.batches[batch_id]
         batch.state = BatchState.STOPPING
-        batch.finished_at = monotonic()
+        batch.finished_at = time()
         self.resources.stop_batch(batch.id)
         for account_id in batch.account_ids:
             if self.pool.farm[account_id].status == FarmStatus.IN_PROGRESS:
