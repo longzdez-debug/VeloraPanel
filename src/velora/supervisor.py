@@ -137,6 +137,7 @@ class Supervisor:
             account = self.get_account(account_id)
             if account is not None:
                 account.last_xp = None
+                account.last_match_result = None
         self._save_farm()
         return batch
 
