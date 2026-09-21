@@ -104,3 +104,13 @@ def test_repeat_batch_is_bounded():
     assert batch.max_matches == 3
     fm.start_batch("r")
     assert batch.state == BatchState.STARTING
+
+
+def test_same_map_consecutive_matches_get_new_generation():
+    from velora.rounds import MatchTracker
+    tracker = MatchTracker()
+    tracker.update("de_dust2", "live", 1)
+    first = tracker.match_id
+    tracker.update("de_dust2", "gameover", 30)
+    tracker.update("de_dust2", "live", 1)
+    assert tracker.match_id > first
