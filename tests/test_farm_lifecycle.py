@@ -132,3 +132,20 @@ def test_target_xp_baseline_math():
     assert pool.farm["a"].xp_after - pool.farm["a"].xp_before < batch.target_xp
     pool.farm["a"].xp_after = 1100
     assert pool.farm["a"].xp_after - pool.farm["a"].xp_before >= batch.target_xp
+
+
+def test_farming_batch_survives_snapshot_for_explicit_runtime_recovery():
+    from velora.account_pool import AccountPool
+    from velora.farm import BatchState, FarmManager
+    from velora.resource import ResourceBudget, ResourceManager
+
+    pool = AccountPool([Account("a")])
+    fm = FarmManager(pool, ResourceManager(ResourceBudget(1, 1)))
+    batch = fm.create_batch("b", ["a"], mode="deathmatch")
+    fm.start_batch("b")
+    batch.state = BatchState.FARMING
+    snapshot = fm.snapshot()
+
+    restored = FarmManager(pool, ResourceManager(ResourceBudget(1, 1)))
+    restored.load_snapshot(snapshot)
+    assert restored.batches["b"].state == BatchState.FARMING
