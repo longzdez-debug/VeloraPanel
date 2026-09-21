@@ -10,7 +10,7 @@ class MovementOutput:
     right: bool
 
 class MovementController:
-    """Last domain boundary before the existing external InputAdapter."""
+    """Last domain boundary before the external input adapter."""
 
     def __init__(self, input_adapter):
         self.input = input_adapter
@@ -28,8 +28,13 @@ class MovementController:
         )
 
     def apply(self, intent: MovementIntent) -> MovementOutput:
-        output = self.translate(intent)
+        value = intent.clamped()
+        output = self.translate(value)
         self.input.move(output.forward, output.back, output.left, output.right)
+        if not value.stop and abs(value.turn) > 0.01:
+            turn = getattr(self.input, "turn", None)
+            if callable(turn):
+                turn(value.turn)
         return output
 
     def stop(self):
