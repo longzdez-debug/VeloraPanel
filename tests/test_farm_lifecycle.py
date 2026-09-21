@@ -63,3 +63,27 @@ def test_walkbot_resets_to_waiting_for_game_on_menu():
     bot.on_gsi(GsiSnapshot(1.0, activity="playing", round_phase="live", health=100, map_name="de_dust2", position=(0, 0, 0)))
     bot.on_gsi(GsiSnapshot(2.0, activity="menu", map_phase="menu"))
     assert bot.fsm.state == WalkState.WAITING_FOR_GAME
+
+
+def test_gsi_routes_to_matching_steam_account_only():
+    from velora.account import Account
+    from velora.config import Config
+    from velora.model import GsiSnapshot
+    from velora.supervisor import Supervisor
+    from velora.walkbot import WalkBot
+
+    class Input:
+        def release_all(self):
+            pass
+        def move(self, forward, back, left, right):
+            pass
+
+    sup = Supervisor(Config(data_dir="data-test-gsi"))
+    a = Account("a", "A", WalkBot(Input()), steam_id="111")
+    b = Account("b", "B", WalkBot(Input()), steam_id="222")
+    sup.add_account(a)
+    sup.add_account(b)
+
+    sup.on_gsi(GsiSnapshot(1.0, activity="playing", round_phase="live", health=100, map_name="de_dust2", steam_id="111"))
+    assert a.last_gsi == 1.0
+    assert b.last_gsi is None
