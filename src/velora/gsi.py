@@ -69,10 +69,19 @@ class GsiServer:
                 except (TypeError, ValueError):
                     rn = None
                 steam_id = player.get("steamid") or player.get("steam_id")
+                xp = None
+                for source in (player, state, data.get("stats") or {}):
+                    value = source.get("xp") if isinstance(source, dict) else None
+                    if value is not None:
+                        try:
+                            xp = int(value)
+                            break
+                        except (TypeError, ValueError):
+                            pass
                 snap = GsiSnapshot(
                     time.monotonic(), ts, map_data.get("name"), map_data.get("phase"),
                     round_data.get("phase"), player.get("activity"), state.get("health"),
-                    steam_id, position, forward, rn, data
+                    steam_id, position, forward, rn, xp, data
                 )
                 if outer._on_snapshot:
                     try:
