@@ -149,3 +149,16 @@ def test_farming_batch_survives_snapshot_for_explicit_runtime_recovery():
     restored = FarmManager(pool, ResourceManager(ResourceBudget(1, 1)))
     restored.load_snapshot(snapshot)
     assert restored.batches["b"].state == BatchState.FARMING
+
+
+def test_manual_mode_allows_multi_account_batches():
+    from velora.account_pool import AccountPool
+    from velora.farm import FarmManager
+    from velora.resource import ResourceBudget, ResourceManager
+
+    pool = AccountPool([Account(str(i)) for i in range(3)])
+    farm = FarmManager(pool, ResourceManager(ResourceBudget(3, 1)))
+    batch = farm.create_batch("manual-many", ["0", "1", "2"], mode="manual")
+    farm.start_batch("manual-many")
+    assert batch.size == 3
+    assert batch.scenario.current.required_players == 3
