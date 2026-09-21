@@ -1,1 +1,0 @@
-"""VeloraPanel core package."""
