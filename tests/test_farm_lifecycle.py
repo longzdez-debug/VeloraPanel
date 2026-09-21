@@ -114,3 +114,21 @@ def test_same_map_consecutive_matches_get_new_generation():
     tracker.update("de_dust2", "gameover", 30)
     tracker.update("de_dust2", "live", 1)
     assert tracker.match_id > first
+
+
+def test_target_xp_baseline_math():
+    from velora.account_pool import AccountPool
+    from velora.farm import FarmManager
+    from velora.resource import ResourceBudget, ResourceManager
+    class A:
+        def __init__(self, account_id):
+            self.id = account_id
+            self.enabled = True
+    pool = AccountPool([A("a")])
+    fm = FarmManager(pool, ResourceManager(ResourceBudget(1, 1)))
+    batch = fm.create_batch("xp", ["a"], "deathmatch", target_xp=100)
+    pool.farm["a"].xp_before = 1000
+    pool.farm["a"].xp_after = 1099
+    assert pool.farm["a"].xp_after - pool.farm["a"].xp_before < batch.target_xp
+    pool.farm["a"].xp_after = 1100
+    assert pool.farm["a"].xp_after - pool.farm["a"].xp_before >= batch.target_xp
