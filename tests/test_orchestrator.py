@@ -62,3 +62,41 @@ def test_xp_baseline_comes_from_first_live_snapshot_not_stats_delta():
     orchestrator._update_xp(batch)
     assert state.xp_before == 1200
     assert state.xp_after == 1250
+
+
+def test_recovery_preserves_xp_progress():
+    from types import SimpleNamespace
+
+    class Account:
+        def __init__(self):
+            self.id = "a"
+            self.enabled = True
+            self.last_xp = 1500
+            self.process_id = None
+            self.fsm = type("FSM", (), {"state": "offline"})()
+
+    account = Account()
+    pool = AccountPool([account])
+    resources = ResourceManager(ResourceBudget(1, 1))
+    farm = FarmManager(pool, resources)
+    batch = farm.create_batch("b", ["a"], target_xp=100)
+    batch.state = type(batch.state).ERROR
+    state = pool.farm["a"]
+    state.xp_before = 1200
+    state.xp_after = 1450
+
+    class SupervisorStub:
+        def __init__(self):
+            self.pool = pool
+            self.farm = farm
+        def start_batch(self, batch_id):
+            return self.farm.start_batch(batch_id)
+
+    supervisor = SupervisorStub()
+    orchestrator = FarmOrchestrator(supervisor)
+    runtime = BatchRuntime("b", retries=1)
+    orchestrator.runtime["b"] = runtime
+    runtime.next_retry = 0
+    assert orchestrator._recover(batch, runtime, 0) is True
+    assert pool.farm["a"].xp_before == 1200
+    assert pool.farm["a"].xp_after == 1450
