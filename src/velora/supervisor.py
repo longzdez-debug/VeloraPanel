@@ -53,6 +53,27 @@ class Supervisor:
                 batch.errors.append("recovery required: active match runtime is missing")
         self.kill_switch = False
         self.window_guards = {}
+        self.account_store = None
+
+    def attach_account_store(self, store):
+        self.account_store = store
+
+    def save_account_profile(self, account_id):
+        if self.account_store is None:
+            return
+        a = self.get_account(account_id)
+        if a is None:
+            raise KeyError(account_id)
+        from .accounts import AccountProfile
+        self.account_store.upsert(AccountProfile(
+            id=a.id,
+            name=a.name,
+            steam_id=a.steam_id or "",
+            enabled=a.enabled,
+            walkbot=bool(getattr(a.walkbot, "enabled", True)),
+            executable=a.executable,
+            launch_args=list(a.launch_args),
+        ))
 
     def add_account(self, a):
         if not any(x.id == a.id for x in self.accounts):
