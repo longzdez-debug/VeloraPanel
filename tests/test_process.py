@@ -33,3 +33,21 @@ def test_find_and_claim_skips_owned_and_old_processes(monkeypatch, tmp_path):
     result = supervisor.find_and_claim(exe, not_before=100.0)
     assert result.pid == 3
     assert claimed == [3]
+
+
+def test_terminate_is_safe_when_process_exits_between_check_and_terminate(monkeypatch):
+    import velora.process as process_module
+
+    supervisor = ProcessSupervisor()
+    supervisor.owned[42] = ProcessIdentity(42, 1.0, "C:/cs2.exe")
+
+    class Gone:
+        def terminate(self):
+            raise process_module.psutil.NoSuchProcess(42)
+
+    monkeypatch.setattr(supervisor, "is_owned", lambda pid: True)
+    monkeypatch.setattr(supervisor, "alive", lambda pid: False)
+    monkeypatch.setattr(process_module.psutil, "Process", lambda pid: Gone())
+
+    assert supervisor.terminate(42) is True
+    assert 42 not in supervisor.owned
