@@ -7,11 +7,11 @@ GSI + Screen Capture -> normalized observations -> WorldModel -> DecisionEngine 
 ## Phases
 
 1. Audit existing architecture. COMPLETE.
-2. Core: WorldModel, provenance, navigation/movement contracts. IN PROGRESS.
-3. GSI: parser, normalized GameState, WorldModel publisher, health.
+2. Core: WorldModel, provenance, navigation/movement contracts. COMPLETE.
+3. GSI: parser, normalized GameState, WorldModel publisher, health. FOUNDATION COMPLETE.
 4. Screen Capture: IScreenCapture, metadata, bounded frame pipeline.
-5. Vision: IVisionBackend, observation contracts, CPU-safe pipeline, optional GPU.
-6. Localization: GSI + visual landmarks + prior estimate with confidence.
+5. Vision: IVisionBackend, observation contracts, CPU-safe pipeline, optional GPU. FOUNDATION COMPLETE.
+6. Localization: GSI + visual landmarks + prior estimate with confidence. FOUNDATION COMPLETE.
 7. NavMesh: NavArea/NavEdge/NavGraph.
 8. Path planning: A* with configurable cost provider.
 9. Route database: metadata, conditions, variants, fallbacks, weighted selection.
