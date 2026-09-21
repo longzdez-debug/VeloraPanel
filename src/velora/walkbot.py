@@ -135,6 +135,8 @@ class WalkBot:
   self.gsi_normalizer.publish(snap,self.world)
   if self.replay:self.replay.record("WalkBot.GsiUpdated",snap.received_at,{"map":snap.map_name,"activity":snap.activity,"health":snap.health,"position":list(snap.position) if snap.position else None})
   self.last_gsi=monotonic();self.last_position=snap.position or self.last_position;self.last_forward=snap.forward or self.last_forward
+  if snap.position is not None:
+   self.world.update_navigation(progress=self.world.snapshot().navigation.progress, position_confidence=self.world.snapshot().localization.position.confidence)
   activity=(snap.activity or "").lower();phase=(snap.round_phase or snap.map_phase or "").lower()
   live=activity in {"playing","live"} and phase in {"live","playing","freezetime","halftime","intermission"}
   if not live or (snap.health is not None and snap.health<=0):
