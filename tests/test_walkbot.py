@@ -43,3 +43,12 @@ def test_telemetry_exposes_navigation_and_recovery_state():
  assert t["position"]==[0,0,0]
  assert t["distance_to_target"]==500.0
  assert t["stuck_count"]==0
+
+
+def test_telemetry_exposes_perception_state():
+ i,w=boot()
+ w.world.update_vision(frame_id=7,observation_count=3,confidence=0.8)
+ t=w.telemetry()
+ assert t["vision_frame_id"]==7
+ assert t["vision_observation_count"]==3
+ assert t["vision_confidence"]==0.8
