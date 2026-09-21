@@ -28,6 +28,7 @@ class Account:
     last_opponent_score: int | None = None
     match_rounds: int = 0
     match_terminal_latched: bool = False
+    last_provider_timestamp: int | None = None
 
     def __post_init__(self):
         self.fsm = StateMachine(AccountState.OFFLINE)
@@ -87,6 +88,14 @@ class Account:
     def on_gsi(self, snap: GsiSnapshot):
         if self.steam_id and snap.steam_id and snap.steam_id != self.steam_id:
             return
+        if (
+            snap.provider_timestamp is not None
+            and self.last_provider_timestamp is not None
+            and snap.provider_timestamp <= self.last_provider_timestamp
+        ):
+            return
+        if snap.provider_timestamp is not None:
+            self.last_provider_timestamp = snap.provider_timestamp
         self.last_gsi = snap.received_at
         if snap.xp is not None:
             self.last_xp = snap.xp
