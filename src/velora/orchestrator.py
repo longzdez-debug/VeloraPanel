@@ -358,7 +358,9 @@ class FarmOrchestrator:
                     match_started_at=now - max(0.0, float(value.get("match_started_age", 0.0))) if value.get("match_started_age") else None,
                     match_generation={str(k): int(v) for k, v in value.get("match_generation", {}).items()},
                     accounted_match_key=tuple(value["accounted_match_key"]) if value.get("accounted_match_key") else None,
-                    recovery_claimed=bool(value.get("recovery_claimed", False)),
+                    # ResourceManager is process-local; a persisted claim can
+                    # never be considered valid after a supervisor restart.
+                    recovery_claimed=False,
                     round_progress={str(k): int(v) for k, v in value.get("round_progress", {}).items()},
                 )
             except (KeyError, TypeError, ValueError):
