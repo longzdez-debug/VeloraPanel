@@ -51,6 +51,20 @@ class RouteDatabase:
                 return route
         return candidates[-1]
 
+    def import_graph(self, map_name: str, graph: RouteGraph, route_id: str = "default", weight: float = 1.0, tags=()) -> RouteEntry:
+        """Bridge the persisted RouteGraph into the richer route metadata layer."""
+        entry = RouteEntry(
+            route_id=str(route_id),
+            map_name=str(map_name),
+            nodes=tuple(graph.nodes.values()),
+            weight=float(weight),
+            tags=frozenset(str(x) for x in tags),
+        )
+        self.routes.setdefault(entry.map_name, [])
+        self.routes[entry.map_name] = [x for x in self.routes[entry.map_name] if x.route_id != entry.route_id]
+        self.routes[entry.map_name].append(entry)
+        return entry
+
     def fallback(self, route: RouteEntry) -> RouteEntry | None:
         if not route.recovery_route:
             return None
