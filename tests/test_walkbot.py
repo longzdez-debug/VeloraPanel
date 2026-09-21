@@ -33,6 +33,16 @@ def test_gsi_timeout_releases():
  w.last_gsi=0;w.tick((0,0,0))
  assert i.last==(False,False,False,False)
 
+def test_live_gsi_drives_forward_input():
+ i=NullInput();w=WalkBot(i);w.start()
+ w.on_gsi(GsiSnapshot(
+     0, activity="playing", health=100, map_name="de_dust2",
+     round_phase="live", position=(0,0,0), forward=(1,0,0),
+ ))
+ w.set_path([Waypoint("a",500,0)])
+ w.tick((0,0,0))
+ assert i.last==(True,False,False,False)
+
 def test_telemetry_exposes_navigation_and_recovery_state():
  i,w=boot();w.set_path([Waypoint("a",500,0),Waypoint("b",900,0)])
  w.tick((0,0,0))
@@ -44,7 +54,6 @@ def test_telemetry_exposes_navigation_and_recovery_state():
  assert t["distance_to_target"]==500.0
  assert t["stuck_count"]==0
 
-
 def test_telemetry_exposes_perception_state():
  i,w=boot()
  w.world.update_vision(frame_id=7,observation_count=3,confidence=0.8)
@@ -52,7 +61,6 @@ def test_telemetry_exposes_perception_state():
  assert t["vision_frame_id"]==7
  assert t["vision_observation_count"]==3
  assert t["vision_confidence"]==0.8
-
 
 def test_gsi_timeout_stops_through_movement_controller():
     i, w = boot()
