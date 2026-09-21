@@ -6,6 +6,7 @@ from time import monotonic
 
 from .account_pool import AccountPool, FarmStatus
 from .resource import ResourceManager
+from .match_director import MatchDirector
 
 
 class BatchState(str, Enum):
@@ -30,6 +31,7 @@ class FarmBatch:
     started_at: float | None = None
     finished_at: float | None = None
     errors: list[str] = field(default_factory=list)
+    director: MatchDirector = field(default_factory=MatchDirector)
 
     @property
     def size(self) -> int:
@@ -66,6 +68,11 @@ class FarmManager:
             return batch
         if not self.resources.start_batch(batch.id):
             raise RuntimeError("batch resource capacity reached")
+        if any(not self.pool.get(account_id) or not getattr(self.pool.get(account_id), "enabled", True)
+               for account_id in batch.account_ids):
+            self.resources.stop_batch(batch.id)
+            raise RuntimeError("batch contains disabled or unavailable account")
+        batch.director.prepare(batch.size)
         batch.state = BatchState.SELECTING
         batch.started_at = monotonic()
         for account_id in batch.account_ids:
@@ -105,6 +112,26 @@ class FarmManager:
                 self.pool.mark(account_id, FarmStatus.PARTIAL)
         return batch
 
+    def player_ready(self, batch_id: str) -> FarmBatch:
+        batch = self.batches[batch_id]
+        batch.director.player_ready()
+        if batch.director.state.value == "lobby_ready":
+            batch.state = BatchState.WAITING_FOR_READY
+        elif batch.director.state.value == "waiting_for_players":
+            batch.state = BatchState.WAITING_FOR_READY
+        return batch
+
+    def start_search(self, batch_id: str) -> FarmBatch:
+        batch = self.batches[batch_id]
+        batch.director.start_search()
+        return batch
+
+    def match_found(self, batch_id: str, match_id: int | None = None) -> FarmBatch:
+        batch = self.batches[batch_id]
+        batch.director.match_found(match_id)
+        batch.state = BatchState.FARMING
+        return batch
+
     def snapshot(self) -> list[dict]:
         return [{
             "id": b.id,
@@ -116,4 +143,8 @@ class FarmManager:
             "started_at": b.started_at,
             "finished_at": b.finished_at,
             "errors": list(b.errors[-5:]),
+            "match_director": b.director.state.value,
+            "ready_players": b.director.ready_players,
+            "expected_players": b.director.expected_players,
+            "match_id": b.director.match_id,
         } for b in self.batches.values()]
