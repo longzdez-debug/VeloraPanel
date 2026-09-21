@@ -27,3 +27,39 @@ def test_restart_recovery_converts_active_batch_to_error():
     restored.load_snapshot(snapshot)
     assert restored.batches["b"].state == BatchState.ERROR
     assert restored.batches["b"].errors
+
+
+def test_walkbot_enters_navigation_after_first_live_gsi():
+    from velora.model import GsiSnapshot, WalkState
+    from velora.walkbot import WalkBot
+
+    class Input:
+        def __init__(self):
+            self.released = 0
+        def release_all(self):
+            self.released += 1
+        def move(self, forward, back, left, right):
+            pass
+
+    inp = Input()
+    bot = WalkBot(inp)
+    bot.start()
+    bot.on_gsi(GsiSnapshot(1.0, activity="playing", round_phase="live", health=100, map_name="de_dust2", position=(0, 0, 0)))
+    assert bot.fsm.state == WalkState.NAVIGATING
+
+
+def test_walkbot_resets_to_waiting_for_game_on_menu():
+    from velora.model import GsiSnapshot, WalkState
+    from velora.walkbot import WalkBot
+
+    class Input:
+        def release_all(self):
+            pass
+        def move(self, forward, back, left, right):
+            pass
+
+    bot = WalkBot(Input())
+    bot.start()
+    bot.on_gsi(GsiSnapshot(1.0, activity="playing", round_phase="live", health=100, map_name="de_dust2", position=(0, 0, 0)))
+    bot.on_gsi(GsiSnapshot(2.0, activity="menu", map_phase="menu"))
+    assert bot.fsm.state == WalkState.WAITING_FOR_GAME
