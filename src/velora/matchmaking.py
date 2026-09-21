@@ -50,6 +50,7 @@ class WindowsMatchmaking:
         now = time.monotonic()
         if now - self._last_start < 5.0:
             return False
+        self._last_start = now
         normalized = self.MODE_ALIASES.get(str(mode).lower(), "deathmatch")
         click = getattr(self.input, "click_normalized", None)
         if not callable(click):
@@ -70,7 +71,6 @@ class WindowsMatchmaking:
         time.sleep(self.settle)
         if not click(self.go_x, self.go_y):
             return False
-        self._last_start = now
         return True
 
     def stop(self) -> None:
