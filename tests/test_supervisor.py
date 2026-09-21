@@ -50,6 +50,7 @@ def test_direct_farming_recovery_claim_is_not_double_acquired(tmp_path):
     batch.state = BatchState.FARMING
     from velora.orchestrator import BatchRuntime
     sup.orchestrator.runtime["b"] = BatchRuntime("b", match_key=("de_dust2", 1, 1))
+    sup.start_account = lambda account_id: account_id
     sup.recover_batch("b")
     assert sup.orchestrator.runtime["b"].recovery_claimed is True
     assert sup.resources.snapshot()["active_accounts"] == 1
