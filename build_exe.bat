@@ -27,7 +27,7 @@ if not exist ".venv\Scripts\python.exe" (
 echo [3/7] Installing project...
 ".venv\Scripts\python.exe" -m pip install --upgrade pip
 if errorlevel 1 goto :error
-".venv\Scripts\python.exe" -m pip install -e .
+".venv\Scripts\python.exe" -m pip install -e ".[dev]"
 if errorlevel 1 goto :error
 
 echo [4/7] Running tests...
