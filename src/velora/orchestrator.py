@@ -77,6 +77,15 @@ class FarmOrchestrator:
         runtime.match_key = (next(iter(maps)), next(iter(rounds)) if rounds else None, next(iter(generations)))
         runtime.match_started_at = time()
         runtime.round_progress = {a.id: getattr(a, "match_rounds", 0) for a in accounts}
+        runtime.game_over_seen.clear()
+        runtime.accounted_match_key = None
+        # Result/score are match-scoped telemetry. Clear them before a new
+        # match so missing final-score data can never inherit the previous match.
+        for account in accounts:
+            account.last_match_result = None
+            account.last_score = None
+            account.last_opponent_score = None
+            account.match_terminal_latched = False
         return True
 
     def _target_reached(self, batch):
