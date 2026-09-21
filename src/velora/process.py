@@ -13,15 +13,17 @@ class ProcessIdentity:
 class ProcessSupervisor:
     def __init__(self):
         self.owned = {}
+        self.unmanaged = set()
 
     def launch(self, executable, *args, cwd=None):
         exe = os.path.abspath(executable)
         p = subprocess.Popen([exe, *args], cwd=cwd or os.path.dirname(exe), close_fds=True)
         ident = ProcessIdentity(p.pid, p.create_time(), exe, tuple([exe, *args]))
         self.owned[p.pid] = ident
+        self.unmanaged.discard(p.pid)
         return ident
 
-    def claim(self, pid: int, executable: str) -> ProcessIdentity | None:
+    def claim(self, pid: int, executable: str, manage: bool = True) -> ProcessIdentity | None:
         try:
             p = psutil.Process(pid)
             exe = os.path.abspath(p.exe())
@@ -30,11 +32,15 @@ class ProcessSupervisor:
                 return None
             ident = ProcessIdentity(pid, p.create_time(), exe, tuple(p.cmdline()))
             self.owned[pid] = ident
+            if manage:
+                self.unmanaged.discard(pid)
+            else:
+                self.unmanaged.add(pid)
             return ident
         except (psutil.Error, OSError):
             return None
 
-    def find_and_claim(self, executable: str, not_before: float | None = None) -> ProcessIdentity | None:
+    def find_and_claim(self, executable: str, not_before: float | None = None, manage: bool = True) -> ProcessIdentity | None:
         expected = os.path.abspath(executable)
         candidates = []
         for p in psutil.process_iter(["pid", "exe", "create_time"]):
@@ -50,10 +56,13 @@ class ProcessSupervisor:
             except (psutil.Error, OSError, TypeError, ValueError):
                 continue
         for _, pid in sorted(candidates, reverse=True):
-            ident = self.claim(pid, expected)
+            ident = self.claim(pid, expected, manage=manage)
             if ident is not None:
                 return ident
         return None
+
+    def find_existing(self, executable: str) -> ProcessIdentity | None:
+        return self.find_and_claim(executable, manage=False)
 
     def is_owned(self, pid):
         x = self.owned.get(pid)
@@ -65,6 +74,9 @@ class ProcessSupervisor:
         except (psutil.Error, OSError):
             return False
 
+    def is_managed(self, pid):
+        return pid in self.owned and pid not in self.unmanaged
+
     def alive(self, pid):
         if not self.is_owned(pid):
             return False
@@ -75,6 +87,9 @@ class ProcessSupervisor:
 
     def terminate(self, pid, timeout=5):
         if not self.is_owned(pid):
+            return False
+        if not self.is_managed(pid):
+            self.forget(pid)
             return False
         try:
             p = psutil.Process(pid)
@@ -108,3 +123,4 @@ class ProcessSupervisor:
 
     def forget(self, pid):
         self.owned.pop(pid, None)
+        self.unmanaged.discard(pid)
