@@ -15,6 +15,9 @@ class AccountStats:
     farmed: bool = False
     collected: bool = False
     last_match_at: float | None = None
+    last_score: int | None = None
+    last_opponent_score: int | None = None
+    last_match_duration: float | None = None
 
 
 class StatsStore:
@@ -31,6 +34,9 @@ class StatsStore:
         xp_delta: int = 0,
         win: bool | None = None,
         match_count: int = 1,
+        score: int | None = None,
+        opponent_score: int | None = None,
+        duration: float | None = None,
     ) -> AccountStats:
         stats = self.get(account_id)
         stats.matches += max(1, int(match_count))
@@ -40,6 +46,9 @@ class StatsStore:
         elif win is False:
             stats.losses += 1
         stats.last_match_at = time()
+        stats.last_score = int(score) if score is not None else None
+        stats.last_opponent_score = int(opponent_score) if opponent_score is not None else None
+        stats.last_match_duration = max(0.0, float(duration)) if duration is not None else None
         return stats
 
     def mark_farmed(self, ids) -> None:
@@ -67,6 +76,9 @@ class StatsStore:
                     farmed=bool(value.get("farmed", False)),
                     collected=bool(value.get("collected", False)),
                     last_match_at=value.get("last_match_at"),
+                    last_score=int(value["last_score"]) if value.get("last_score") is not None else None,
+                    last_opponent_score=int(value["last_opponent_score"]) if value.get("last_opponent_score") is not None else None,
+                    last_match_duration=float(value["last_match_duration"]) if value.get("last_match_duration") is not None else None,
                 )
                 self.items[stats.account_id] = stats
             except (KeyError, TypeError, ValueError):
