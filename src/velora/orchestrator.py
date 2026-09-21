@@ -250,7 +250,17 @@ class FarmOrchestrator:
                         after = self.s.pool.farm[account_id].xp_after
                         xp_delta = max(0, after - before) if before is not None and after is not None else 0
                         result = getattr(account, "last_match_result", None) if account is not None else None
-                        self.s.stats.record_match(account_id, xp_delta=xp_delta, win=result, match_count=1)
+                        score = getattr(account, "last_score", None) if account is not None else None
+                        opponent_score = getattr(account, "last_opponent_score", None) if account is not None else None
+                        self.s.stats.record_match(
+                            account_id,
+                            xp_delta=xp_delta,
+                            win=result,
+                            match_count=1,
+                            score=score,
+                            opponent_score=opponent_score,
+                            duration=duration,
+                        )
                         state = self.s.pool.farm[account_id]
                         state.matches_played += 1
                         state.farm_seconds += duration
