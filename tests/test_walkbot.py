@@ -1,7 +1,34 @@
 from velora.input import NullInput
-from velora.walkbot import WalkBot,Waypoint
+from velora.walkbot import WalkBot,Waypoint,WalkConfig
 from velora.model import WalkState,GsiSnapshot
+
+def boot():
+ i=NullInput();w=WalkBot(i);w.start();w.fsm.dispatch("ready");w.fsm.dispatch("live");w.fsm.dispatch("spawn")
+ w.last_gsi=__import__("time").monotonic()
+ return i,w
+
 def test_lifecycle():
- i=NullInput();w=WalkBot(i);w.start();assert w.fsm.state==WalkState.INITIALIZING;w.fsm.dispatch("ready");w.on_gsi(GsiSnapshot(0,activity="playing"));assert w.fsm.state==WalkState.WAITING_FOR_SPAWN
+ i=NullInput();w=WalkBot(i);w.start();w.fsm.dispatch("ready")
+ w.on_gsi(GsiSnapshot(0,activity="playing",health=100))
+ assert w.fsm.state==WalkState.NAVIGATING
+
 def test_arrival_releases_input():
- i=NullInput();w=WalkBot(i);w.start();w.fsm.dispatch("ready");w.fsm.dispatch("live");w.fsm.dispatch("spawn");w.set_path([Waypoint("a",0,0)]);w.tick((0,0,0));assert i.last==(False,False,False,False)
+ i,w=boot();w.set_path([Waypoint("a",0,0)]);w.tick((0,0,0))
+ assert i.last==(False,False,False,False)
+
+def test_recovery_can_replan():
+ i,w=boot()
+ calls=[]
+ w.replan=lambda p:(calls.append(p) or True)
+ w.set_path([Waypoint("a",500,0)])
+ w.cfg=WalkConfig(stuck_seconds=0,max_recoveries=2,recovery_seconds=0,recovery_side_seconds=0)
+ w.progress_position=(0,0,0);w.last_progress=0
+ w.tick((0,0,0))
+ assert w.fsm.state==WalkState.RECOVERING
+ w.tick((0,0,0))
+ assert calls and w.fsm.state==WalkState.NAVIGATING
+
+def test_gsi_timeout_releases():
+ i,w=boot();w.set_path([Waypoint("a",500,0)])
+ w.last_gsi=0;w.tick((0,0,0))
+ assert i.last==(False,False,False,False)
