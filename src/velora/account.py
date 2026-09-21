@@ -89,16 +89,22 @@ class Account:
         self.last_gsi = snap.received_at
         if snap.xp is not None:
             self.last_xp = snap.xp
-        # Match termination comes from the map phase. A round-level `over`
-        # is only a round boundary and must never end the account's match.
-        phase = (snap.map_phase or snap.round_phase or "").lower()
-        if phase in {"gameover", "game_over", "postgame"} and snap.team_score is not None and snap.opponent_score is not None and snap.team_score != snap.opponent_score:
+        map_phase = (snap.map_phase or "").lower()
+        round_phase = (snap.round_phase or "").lower()
+        terminal_phases = {"gameover", "game_over", "postgame"}
+        phase = map_phase or round_phase
+        if map_phase not in terminal_phases and round_phase in terminal_phases:
+            phase = round_phase
+        if phase in terminal_phases and snap.team_score is not None and snap.opponent_score is not None and snap.team_score != snap.opponent_score:
             self.last_score = snap.team_score
             self.last_opponent_score = snap.opponent_score
             self.last_match_result = snap.team_score > snap.opponent_score
         self.on_ready()
         previous = self.match.state
-        self.match.update(snap.map_name, snap.map_phase or snap.round_phase, snap.round_number)
+        match_phase = map_phase or round_phase
+        if map_phase not in terminal_phases and round_phase in terminal_phases:
+            match_phase = round_phase
+        self.match.update(snap.map_name, match_phase, snap.round_number)
         self.match_rounds = self.match.rounds_seen
 
         if self.match.state == RoundState.GAME_OVER and self.fsm.state == AccountState.IN_MATCH:
