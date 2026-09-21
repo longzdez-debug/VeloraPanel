@@ -17,6 +17,8 @@ class Account:
  route_map:str|None=None
  route_start:str|None=None
  route_goal:str|None=None
+ restart_count:int=0
+ next_restart_at:float=0.0
  def __post_init__(self):
   self.fsm=StateMachine(AccountState.OFFLINE);s=AccountState
   for a,e,b in [(s.OFFLINE,"start",s.STARTING),(s.STARTING,"ready",s.MENU),
@@ -44,6 +46,8 @@ class Account:
   self.walkbot.on_gsi(snap)
  def stop(self):
   self.walkbot.stop()
+  self.restart_count=0
+  self.next_restart_at=0.0
   if self.fsm.state not in (AccountState.OFFLINE,AccountState.STOPPING):
    self.fsm.dispatch("stop")
   if self.fsm.state==AccountState.STOPPING:self.fsm.dispatch("reset")
