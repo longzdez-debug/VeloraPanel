@@ -81,7 +81,7 @@ class Account:
     def _is_live(self, snap: GsiSnapshot) -> bool:
         activity = (snap.activity or "").lower()
         phase = (snap.map_phase or "").lower()
-        return activity in {"playing", "live"} and bool(snap.map_name or snap.round_phase) and phase not in {"menu", "mainmenu", "loading"}
+        return activity in {"playing", "live"} and bool(snap.map_name or snap.round_phase) and phase not in {"menu", "mainmenu", "loading", "gameover", "game_over", "postgame"}
 
     def on_gsi(self, snap: GsiSnapshot):
         if self.steam_id and snap.steam_id and snap.steam_id != self.steam_id:
