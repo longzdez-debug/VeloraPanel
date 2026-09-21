@@ -270,3 +270,19 @@ def test_gsi_freshness_uses_wall_clock():
     assert account.gsi_stale(5, now=monotonic()) is True
     account.last_gsi = monotonic()
     assert account.gsi_stale(5, now=monotonic()) is False
+
+
+def test_supervisor_restores_orchestrator_runtime(tmp_path):
+    from velora.config import Config
+    from velora.supervisor import Supervisor
+    from velora.orchestrator import BatchRuntime
+
+    data_dir = str(tmp_path / "velora")
+    first = Supervisor(Config(data_dir=data_dir))
+    first.orchestrator.runtime["b"] = BatchRuntime("b", retries=2, last_error="recovering")
+    first._save_farm()
+
+    second = Supervisor(Config(data_dir=data_dir))
+    assert "b" in second.orchestrator.runtime
+    assert second.orchestrator.runtime["b"].retries == 2
+    assert second.orchestrator.runtime["b"].last_error == "recovering"
