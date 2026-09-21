@@ -130,6 +130,18 @@ class FarmManager:
             batch.state = BatchState.FARMING
         return batch
 
+    def recover_farming_batch(self, batch_id):
+        """Re-acquire resources for a persisted in-match batch without resetting its progress."""
+        batch = self.batches[batch_id]
+        if batch.state != BatchState.FARMING:
+            raise RuntimeError("batch is not in farming state")
+        self._validate_mode(batch.mode, batch.size)
+        if not self.resources.start_batch(batch.id):
+            raise RuntimeError("batch resource capacity reached")
+        for account_id in batch.account_ids:
+            self.pool.mark(account_id, FarmStatus.IN_PROGRESS, target_xp=batch.target_xp)
+        return batch
+
     def finish_batch(self, batch_id, success=True):
         batch = self.batches[batch_id]
         batch.state = BatchState.FINISHED if success else BatchState.ERROR
@@ -196,10 +208,10 @@ class FarmManager:
                     b.director.state = type(b.director.state)(saved_director)
                 except ValueError:
                     b.director.state = type(b.director.state).IDLE
-                # A process restart cannot safely resume an in-flight lobby/search.
-                # Convert it to recoverable ERROR instead of pretending the old
-                # Steam/CS2 state still exists.
-                if b.state not in (BatchState.IDLE, BatchState.FINISHED, BatchState.STOPPING):
+                # FARMING can be resumed only when the orchestrator also persisted
+                # the active match identity. Lobby/search states remain conservative
+                # ERROR states because their external state cannot be reconstructed.
+                if b.state in (BatchState.STARTING, BatchState.WAITING_FOR_READY):
                     b.state = BatchState.ERROR
                     b.director.fail("recovery required after process restart")
                     b.errors.append("recovery required after process restart")
