@@ -173,7 +173,10 @@ class Dashboard:
     if p=="/api/accounts":
      return self._json({"accounts":[{"id":a.id,"name":a.name,"steam_id":a.steam_id or "","enabled":a.enabled,"walkbot":bool(getattr(a.walkbot,"enabled",True)),"executable":a.executable,"launch_args":list(a.launch_args)} for a in outer.s.accounts]})
     if p.startswith("/api/routes/"):
-     parts=[x for x in p.split("/") if x];return self._json(outer.s.route_store.get(parts[2]).to_dict())
+     parts=[x for x in p.split("/") if x]
+     if len(parts)==4 and parts[3]=="validate":
+      g=outer.s.route_store.get(parts[2]);return self._json(g.analysis())
+     return self._json(outer.s.route_store.get(parts[2]).to_dict())
     if p=="/api/diagnostics":
      outer.logger.info("diagnostics requested")
      return self._json(as_dict(run_checks(outer.s.config.data_dir,outer.s.config.gsi_port,outer.s.config.dashboard_port)))
