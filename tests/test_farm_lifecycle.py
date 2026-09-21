@@ -201,3 +201,55 @@ def test_round_over_does_not_end_account_match_but_map_gameover_does():
     account.on_gsi(GsiSnapshot(4.0, activity="playing", map_name="de_dust2", map_phase="gameover", round_phase="gameover", round_number=30, player_team="CT", team_score=16, opponent_score=12))
     assert account.fsm.state == AccountState.MENU
     assert account.last_match_result is True
+
+
+def test_terminal_gsi_latch_ignores_stale_live_snapshot_until_queue():
+    from velora.account import Account
+    from velora.model import AccountState, GsiSnapshot
+    from velora.walkbot import WalkBot
+
+    class Input:
+        def release_all(self): pass
+        def move(self, forward, back, left, right): pass
+
+    account = Account("a", "A", WalkBot(Input()))
+    account.start()
+    account.on_gsi(GsiSnapshot(1.0, activity="playing", map_name="de_dust2", map_phase="live", round_phase="live", round_number=1))
+    account.on_gsi(GsiSnapshot(2.0, activity="playing", map_name="de_dust2", map_phase="gameover", round_phase="gameover", round_number=30, player_team="CT", team_score=16, opponent_score=12))
+    assert account.fsm.state == AccountState.MENU
+    account.on_gsi(GsiSnapshot(3.0, activity="playing", map_name="de_dust2", map_phase="live", round_phase="live", round_number=30))
+    assert account.fsm.state == AccountState.MENU
+    account.on_gsi(GsiSnapshot(4.0, activity="queue"))
+    assert account.fsm.state == AccountState.QUEUING
+    account.on_gsi(GsiSnapshot(5.0, activity="playing", map_name="de_dust2", map_phase="live", round_phase="live", round_number=1))
+    assert account.fsm.state == AccountState.IN_MATCH
+
+
+def test_new_match_does_not_reuse_previous_result_or_score():
+    from velora.account import Account
+    from velora.model import GsiSnapshot
+    from velora.orchestrator import BatchRuntime, FarmOrchestrator
+    from velora.walkbot import WalkBot
+
+    class Input:
+        def release_all(self): pass
+        def move(self, forward, back, left, right): pass
+
+    account = Account("a", "A", WalkBot(Input()))
+    account.start()
+    account.on_gsi(GsiSnapshot(1.0, activity="playing", map_name="de_dust2", map_phase="live", round_phase="live", round_number=1))
+    account.on_gsi(GsiSnapshot(2.0, activity="playing", map_name="de_dust2", map_phase="gameover", round_phase="gameover", round_number=30, player_team="CT", team_score=16, opponent_score=12))
+    assert account.last_match_result is True
+
+    class S:
+        def get_account(self, account_id): return account
+    orchestrator = FarmOrchestrator(S())
+    batch = type("B", (), {"id": "b", "account_ids": ["a"]})()
+    runtime = BatchRuntime("b", match_generation={"a": 0})
+    account.match_terminal_latched = False
+    account.on_gsi(GsiSnapshot(3.0, activity="queue"))
+    account.on_gsi(GsiSnapshot(4.0, activity="playing", map_name="de_dust2", map_phase="live", round_phase="live", round_number=1))
+    assert orchestrator._capture_match(batch, runtime, 0.0) is True
+    assert account.last_match_result is None
+    assert account.last_score is None
+    assert account.last_opponent_score is None
