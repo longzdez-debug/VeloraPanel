@@ -58,12 +58,42 @@ class Supervisor:
                 batch.errors.append("recovery required: active match runtime is missing")
         self.kill_switch = False
         self.window_guards = {}
+        self.matchmaking = {}
         self.account_store = None
         self._last_persist_at = 0.0
         self._persist_interval = 0.5
 
     def attach_account_store(self, store):
         self.account_store = store
+
+    def bind_matchmaking(self, account_id, adapter):
+        self.matchmaking[account_id] = adapter
+
+    def _auto_matchmaking_tick(self, a):
+        if not self.config.auto_matchmaking or self.kill_switch or not a.process_id:
+            return
+        if a.fsm.state != AccountState.MENU:
+            return
+        adapter = self.matchmaking.get(a.id)
+        if adapter is None:
+            return
+        try:
+            if adapter.start(self.config.matchmaking_mode):
+                self.logger.info("automatic matchmaking started account=%s mode=%s", a.id, self.config.matchmaking_mode)
+        except Exception as exc:
+            a.errors.append(f"automatic matchmaking failed: {exc}")
+            self.logger.exception("automatic matchmaking failed account=%s", a.id)
+
+    def _ensure_route_for_live(self, a):
+        if not a.route_map or not a.route_goal or not a.walkbot.enabled:
+            return
+        if a.walkbot.last_position is None or a.walkbot.path:
+            return
+        try:
+            self.set_route_from_position(a.id, a.route_map, a.route_goal, a.walkbot.last_position)
+            self.logger.info("auto route assigned account=%s map=%s goal=%s", a.id, a.route_map, a.route_goal)
+        except Exception as exc:
+            self.logger.debug("auto route not assigned account=%s: %s", a.id, exc)
 
     def save_account_profile(self, account_id):
         if self.account_store is None:
@@ -471,6 +501,9 @@ class Supervisor:
                         except Exception as exc:
                             a.errors.append(f"watchdog restart failed: {exc}")
                     try:
+                        self._auto_matchmaking_tick(a)
+                        if a.fsm.state == AccountState.IN_MATCH:
+                            self._ensure_route_for_live(a)
                         a.walkbot.tick(a.walkbot.last_position)
                     except Exception as exc:
                         a.walkbot.emergency_stop()
