@@ -18,6 +18,7 @@ class AccountStats:
     last_score: int | None = None
     last_opponent_score: int | None = None
     last_match_duration: float | None = None
+    last_rounds: int = 0
 
 
 class StatsStore:
@@ -37,6 +38,7 @@ class StatsStore:
         score: int | None = None,
         opponent_score: int | None = None,
         duration: float | None = None,
+        rounds: int = 0,
     ) -> AccountStats:
         stats = self.get(account_id)
         stats.matches += max(1, int(match_count))
@@ -49,6 +51,7 @@ class StatsStore:
         stats.last_score = int(score) if score is not None else None
         stats.last_opponent_score = int(opponent_score) if opponent_score is not None else None
         stats.last_match_duration = max(0.0, float(duration)) if duration is not None else None
+        stats.last_rounds = max(0, int(rounds))
         return stats
 
     def mark_farmed(self, ids) -> None:
@@ -79,6 +82,7 @@ class StatsStore:
                     last_score=int(value["last_score"]) if value.get("last_score") is not None else None,
                     last_opponent_score=int(value["last_opponent_score"]) if value.get("last_opponent_score") is not None else None,
                     last_match_duration=float(value["last_match_duration"]) if value.get("last_match_duration") is not None else None,
+                    last_rounds=int(value.get("last_rounds", 0)),
                 )
                 self.items[stats.account_id] = stats
             except (KeyError, TypeError, ValueError):
