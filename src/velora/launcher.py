@@ -11,6 +11,7 @@ class LaunchResult:
     identity: ProcessIdentity
     executable: str
     via_steam: bool = False
+    attached: bool = False
 
 class Cs2Launcher:
     def __init__(self, processes=None, startup_timeout: float = 30.0):
@@ -28,6 +29,11 @@ class Cs2Launcher:
         exe = self.resolve(configured)
         if not exe:
             raise FileNotFoundError("CS2 executable was not found")
+
+        existing = self.processes.find_existing(str(exe))
+        if existing is not None:
+            return LaunchResult(existing, str(exe), attached=True)
+
         if via_steam:
             steam = find_steam()
             if not steam:
@@ -41,7 +47,7 @@ class Cs2Launcher:
             deadline = time.monotonic() + self.startup_timeout
             while time.monotonic() < deadline:
                 try:
-                    ident = self.processes.find_and_claim(str(exe), not_before=launch_started)
+                    ident = self.processes.find_and_claim(str(exe), not_before=launch_started, manage=True)
                     if ident is not None:
                         return LaunchResult(ident, str(exe), True)
                 except OSError:
