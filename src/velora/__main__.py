@@ -44,12 +44,12 @@ def main():
         account.route_map = getattr(p, "route_map", None)
         account.route_start = getattr(p, "route_start", None)
         account.route_goal = getattr(p, "route_goal", None)
+        sup.add_account(account)
         if account.route_map and account.route_goal:
             try:
                 sup.set_route(account.id, account.route_map, account.route_start or account.route_goal, account.route_goal)
-            except Exception:
-                pass
-        sup.add_account(account)
+            except Exception as exc:
+                logger.warning("route restore failed for %s: %s", account.id, exc)
 
     ui = Dashboard(sup, c.dashboard_host, c.dashboard_port)
     ui.start()
