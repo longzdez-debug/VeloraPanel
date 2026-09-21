@@ -43,7 +43,7 @@ class Dashboard:
     p=unquote(urlparse(self.path).path)
     if p=="/api/status":
      now=time.monotonic()
-     return self._json({"running":outer.s.running,"kill_switch":outer.s.kill_switch,"resources":outer.s.resources.snapshot(),"batches":outer.s.farm.snapshot(),"accounts":[{"id":a.id,"name":a.name,"state":a.fsm.state.value,"match":a.match_state().value,"round":a.match.round_number,"walkbot":a.walkbot.fsm.state.value,"process_id":a.process_id,"route_map":a.route_map,"route_goal":a.route_goal,"gsi_age":None if a.walkbot.last_gsi is None else max(0,now-a.walkbot.last_gsi),"errors":a.errors[-5:],"restart_count":a.restart_count,"next_restart_at":a.next_restart_at,"started_at":a.started_at} for a in outer.s.accounts]})
+     return self._json({"running":outer.s.running,"kill_switch":outer.s.kill_switch,"resources":outer.s.resources.snapshot(),"batches":outer.s.farm.snapshot(),"lobbies":outer.s.lobbies.snapshot(),"stats":outer.s.stats.snapshot(),"accounts":[{"id":a.id,"name":a.name,"state":a.fsm.state.value,"match":a.match_state().value,"round":a.match.round_number,"walkbot":a.walkbot.fsm.state.value,"process_id":a.process_id,"route_map":a.route_map,"route_goal":a.route_goal,"gsi_age":None if a.walkbot.last_gsi is None else max(0,now-a.walkbot.last_gsi),"errors":a.errors[-5:],"restart_count":a.restart_count,"next_restart_at":a.next_restart_at,"started_at":a.started_at} for a in outer.s.accounts]})
     if p=="/api/farm/batches":
      return self._json({"batches":outer.s.farm.snapshot()})
     if p=="/api/routes":
@@ -58,6 +58,14 @@ class Dashboard:
     try:
      if parts==["api","emergency-stop"]:outer.s.emergency_stop();return self._json({"ok":True})
      if parts==["api","kill-switch","clear"]:outer.s.clear_kill_switch();return self._json({"ok":True})
+     if len(parts)==4 and parts[:3]==["api","lobbies"]:
+      lid=parts[3]; d=self._body(); action=str(d.get("action",""))
+      if action=="create": result=outer.s.create_lobby(lid,[str(x) for x in d["account_ids"]])
+      elif action=="ready": result=outer.s.ready_lobby(lid,str(d.get("code","")))
+      elif action=="disband": result=outer.s.disband_lobby(lid)
+      elif action=="shuffle": result=outer.s.shuffle_lobby(lid,[str(x) for x in d["account_ids"]])
+      else:return self._json({"error":"unknown lobby action"},404)
+      return self._json({"ok":True,"lobbies":outer.s.lobbies.snapshot()})
      if len(parts)==4 and parts[:3]==["api","farm","batches"]:
       batch_id=parts[3]; d=self._body()
       action=str(d.get("action",""))
