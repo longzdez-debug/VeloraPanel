@@ -140,3 +140,11 @@ def test_gsi_does_not_invent_result_without_final_score():
         assert seen[0].opponent_score is None
     finally:
         server.stop()
+
+
+def test_gsi_health_reports_disconnected_state():
+    server = GsiServer()
+    health = server.health()
+    assert health["connected"] is False
+    assert health["stale"] is True
+    assert health["packet_count"] == 0
