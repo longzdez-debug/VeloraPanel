@@ -18,7 +18,7 @@
 | 14 Behaviour | FOUNDATION COMPLETE | deterministic bounded BehaviourSampler |
 | 15 Replay/Telemetry | INTEGRATED FOUNDATION | replay.py + replay_runner.py + telemetry.py + WalkBot replay hooks |
 | 16 Performance | INTEGRATED FOUNDATION | bounded frame pipeline + scheduler drop/capture/vision metrics |
-| 17 Full integration | IN PROGRESS | GSI health, WorldModel, navigation/recovery, replay and movement boundaries integrated; Windows runtime/CI verification remains |
+| 17 Full integration | COMPLETE* | External-only control path, GSI -> WorldModel -> Decision -> Steering -> MovementController, recovery, replay, telemetry, dashboard and route persistence are integrated; *final runtime/build verification remains environment-dependent* |
 
 ## What is deliberately not claimed as complete
 
@@ -60,3 +60,11 @@ The modernization keeps the external boundary. No memory reader, injection, hook
 ## Final integration hardening checkpoint
 - Decision Engine now refuses stale localization before movement decisions.
 - Movement replay records decision confidence for offline diagnosis.
+
+
+## Completion hardening checkpoint
+- WalkBot no longer calls the external input adapter directly; all movement release/apply operations cross MovementController.
+- Decision safety is regression-tested for both fresh and stale localization.
+- GSI normalization uses the receive-time monotonic timestamp for freshness.
+- Route persistence is bridged into RouteDatabase and duplicate route IDs are replaced deterministically.
+- Replay loading remains bounded and offline-only.
