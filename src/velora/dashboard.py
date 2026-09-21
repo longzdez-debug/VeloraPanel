@@ -39,7 +39,9 @@ class Dashboard:
   outer=self
   class H(BaseHTTPRequestHandler):
    def _body(self):
-    n=int(self.headers.get("Content-Length","0") or 0);return json.loads(self.rfile.read(n) or b"{}")
+    n=int(self.headers.get("Content-Length","0") or 0)
+    if n > 1024 * 1024: raise ValueError("request body too large")
+    return json.loads(self.rfile.read(n) or b"{}"}
    def _json(self,obj,status=200):
     b=json.dumps(obj,ensure_ascii=False).encode();self.send_response(status);self.send_header("Content-Type","application/json");self.send_header("Cache-Control","no-store");self.end_headers();self.wfile.write(b)
    def do_GET(self):
@@ -51,6 +53,8 @@ class Dashboard:
      return self._json({"batches":outer.s.farm.snapshot()})
     if p=="/api/routes":
      return self._json({"maps":outer.s.route_store.maps()})
+    if p=="/api/accounts":
+     return self._json({"accounts":[{"id":a.id,"name":a.name,"steam_id":a.steam_id or "","enabled":a.enabled,"walkbot":bool(getattr(a.walkbot,"enabled",True)),"executable":a.executable,"launch_args":list(a.launch_args)} for a in outer.s.accounts]})
     if p.startswith("/api/routes/"):
      parts=[x for x in p.split("/") if x];return self._json(outer.s.route_store.get(parts[2]).to_dict())
     if p=="/api/diagnostics":
@@ -61,6 +65,30 @@ class Dashboard:
     try:
      if parts==["api","emergency-stop"]:outer.s.emergency_stop();return self._json({"ok":True})
      if parts==["api","kill-switch","clear"]:outer.s.clear_kill_switch();return self._json({"ok":True})
+     if parts==["api","routes","create"]:
+      d=self._body();name=str(d.get("map","")).strip()
+      if not name:return self._json({"error":"map is required"},400)
+      if name in outer.s.route_store.maps():return self._json({"error":"map already exists"},409)
+      from .routes import RouteGraph
+      outer.s.route_store.save(name,RouteGraph())
+      return self._json({"ok":True,"map":name})
+     if len(parts)==4 and parts[:2]==["api","accounts"] and parts[3]=="profile":
+      a=outer.s.get_account(parts[2])
+      if not a:return self._json({"error":"account not found"},404)
+      d=self._body()
+      if "name" in d:a.name=str(d["name"]).strip() or a.name
+      if "steam_id" in d:a.steam_id=str(d["steam_id"]).strip() or None
+      if "enabled" in d:a.enabled=bool(d["enabled"])
+      if "walkbot" in d:a.walkbot.enabled=bool(d["walkbot"])
+      if "executable" in d:a.executable=str(d["executable"])
+      if "launch_args" in d:
+       if not isinstance(d["launch_args"],list): return self._json({"error":"launch_args must be a list"},400)
+       a.launch_args=[str(x) for x in d["launch_args"]]
+      outer.s.save_account_profile(a.id)
+      return self._json({"ok":True})
+     if len(parts)==4 and parts[:2]==["api","accounts"] and parts[3]=="delete":
+      outer.s.remove_account(parts[2])
+      return self._json({"ok":True})
      if len(parts)==4 and parts[:3]==["api","lobbies"]:
       lid=parts[3]; d=self._body(); action=str(d.get("action",""))
       if action=="create": result=outer.s.create_lobby(lid,[str(x) for x in d["account_ids"]])
@@ -88,7 +116,7 @@ class Dashboard:
       elif parts[3]=="stop":outer.s.stop_account(a.id)
       elif parts[3]=="kill":a.walkbot.emergency_stop()
       elif parts[3]=="route":
-       d=self._body();outer.s.set_route_from_position(a.id,str(d["map"]),str(d["goal"]),a.walkbot.last_position or (0,0,0))
+       d=self._body();outer.s.set_route_from_position(a.id,str(d["map"]),str(d["goal"]),a.walkbot.last_position or (0,0,0));outer.s.save_account_profile(a.id)
       else:return self._json({"error":"unknown action"},404)
       return self._json({"ok":True})
      if len(parts)==5 and parts[:2]==["api","routes"] and parts[3]=="nodes" and parts[4]=="delete":
