@@ -148,3 +148,13 @@ def test_gsi_health_reports_disconnected_state():
     assert health["connected"] is False
     assert health["stale"] is True
     assert health["packet_count"] == 0
+
+
+def test_gsi_health_reports_recent_packet_as_connected():
+    server = GsiServer()
+    server.last_received = __import__("time").monotonic()
+    server.packet_count = 4
+    health = server.health(stale_after=3.0)
+    assert health["connected"] is True
+    assert health["stale"] is False
+    assert health["packet_count"] == 4
