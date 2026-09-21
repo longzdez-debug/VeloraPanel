@@ -38,6 +38,8 @@ class FarmBatch:
     account_ids: list[str]
     mode: str = "manual"
     target_xp: int | None = None
+    repeat: bool = False
+    max_matches: int | None = None
     state: BatchState = BatchState.IDLE
     created_at: float = field(default_factory=time)
     started_at: float | None = None
@@ -59,7 +61,7 @@ class FarmManager:
         self.resources = resources
         self.batches: dict[str, FarmBatch] = {}
 
-    def create_batch(self, batch_id, account_ids, mode="manual", target_xp=None):
+    def create_batch(self, batch_id, account_ids, mode="manual", target_xp=None, repeat=False, max_matches=None):
         if batch_id in self.batches:
             raise ValueError(f"batch already exists: {batch_id}")
         if not account_ids:
@@ -72,7 +74,9 @@ class FarmManager:
         self._validate_mode(mode, len(account_ids))
         if not self.resources.can_start_batch(batch_id):
             raise RuntimeError("batch resource capacity reached")
-        batch = FarmBatch(batch_id, list(account_ids), mode, target_xp)
+        if max_matches is not None and int(max_matches) < 1:
+            raise ValueError("max_matches must be >= 1")
+        batch = FarmBatch(batch_id, list(account_ids), mode, target_xp, repeat=bool(repeat), max_matches=None if max_matches is None else int(max_matches))
         self.batches[batch_id] = batch
         return batch
 
@@ -176,6 +180,8 @@ class FarmManager:
                     [str(x) for x in item.get("account_ids", [])],
                     str(item.get("mode", "manual")),
                     item.get("target_xp"),
+                    bool(item.get("repeat", False)),
+                    item.get("max_matches"),
                 )
                 b.state = BatchState(str(item.get("state", BatchState.IDLE.value)))
                 b.created_at = item.get("created_at", b.created_at)
@@ -205,7 +211,7 @@ class FarmManager:
         return [{
             "id": b.id, "state": b.state.value, "mode": b.mode,
             "account_ids": list(b.account_ids), "size": b.size,
-            "target_xp": b.target_xp, "created_at": b.created_at,
+            "target_xp": b.target_xp, "repeat": b.repeat, "max_matches": b.max_matches, "created_at": b.created_at,
             "started_at": b.started_at, "finished_at": b.finished_at,
             "errors": list(b.errors[-20:]),
             "match_director": b.director.state.value,
