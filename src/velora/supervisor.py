@@ -9,6 +9,7 @@ from .launcher import Cs2Launcher
 from .model import AccountState
 from .routes import RouteStore
 from .storage import JsonStore
+from .scheduler import Job, Scheduler
 
 @dataclass
 class Supervisor:
@@ -21,14 +22,16 @@ class Supervisor:
         self.processes = ProcessSupervisor()
         self.launcher = Cs2Launcher(self.processes)
         self.route_store = RouteStore(JsonStore(f"{self.config.data_dir}/routes.json"))
+        self.scheduler = Scheduler(max_concurrent=1)
         self.kill_switch = False
         self.window_guards = {}
-  self._watchdog_due = {}
+        self._watchdog_due = {}
 
     def add_account(self, a):
         if not any(x.id == a.id for x in self.accounts):
             self.accounts.append(a)
         self._bind_walkbot(a)
+        self.scheduler.add(Job(f"account:{a.id}", a.id, enabled=False))
 
     def _bind_walkbot(self, a):
         def replan(position):
@@ -54,7 +57,6 @@ class Supervisor:
     def on_gsi(self, snap):
         for a in self.accounts:
             a.on_gsi(snap)
-        for a in self.accounts:
             if a.route_map and snap.map_name and snap.map_name != a.route_map:
                 a.walkbot.input.release_all()
 
@@ -139,6 +141,12 @@ class Supervisor:
                 a.fsm.dispatch("error")
             except Exception:
                 pass
+        if self.config.watchdog_enabled and a.enabled and not self.kill_switch:
+            a.restart_count += 1
+            if a.restart_count <= self.config.watchdog_max_restarts:
+                a.next_restart_at = monotonic() + self.config.watchdog_backoff * (2 ** (a.restart_count - 1))
+            else:
+                a.errors.append("watchdog restart limit reached")
 
     async def run(self):
         self.running = True
@@ -147,10 +155,11 @@ class Supervisor:
         delay = 1 / max(self.config.tick_hz, 1)
         try:
             while self.running:
+                now = monotonic()
                 for a in self.accounts:
                     if a.process_id and not self.processes.alive(a.process_id):
                         self._process_death(a)
-                    if (a.process_id is None and a.next_restart_at and monotonic() >= a.next_restart_at
+                    if (a.process_id is None and a.next_restart_at and now >= a.next_restart_at
                             and a.restart_count <= self.config.watchdog_max_restarts and not self.kill_switch):
                         a.next_restart_at = 0.0
                         try:
