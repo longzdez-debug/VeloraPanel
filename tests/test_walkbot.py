@@ -32,3 +32,14 @@ def test_gsi_timeout_releases():
  i,w=boot();w.set_path([Waypoint("a",500,0)])
  w.last_gsi=0;w.tick((0,0,0))
  assert i.last==(False,False,False,False)
+
+def test_telemetry_exposes_navigation_and_recovery_state():
+ i,w=boot();w.set_path([Waypoint("a",500,0),Waypoint("b",900,0)])
+ w.tick((0,0,0))
+ t=w.telemetry()
+ assert t["state"]=="navigating"
+ assert t["target_node"]=="a"
+ assert t["path_length"]==2
+ assert t["position"]==[0,0,0]
+ assert t["distance_to_target"]==500.0
+ assert t["stuck_count"]==0
