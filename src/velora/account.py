@@ -86,7 +86,8 @@ class Account:
         self.last_gsi = snap.received_at
         if snap.xp is not None:
             self.last_xp = snap.xp
-        if snap.team_score is not None and snap.opponent_score is not None and snap.team_score != snap.opponent_score:
+        phase = (snap.round_phase or snap.map_phase or "").lower()
+        if phase in {"gameover", "game_over", "postgame", "over"} and snap.team_score is not None and snap.opponent_score is not None and snap.team_score != snap.opponent_score:
             self.last_match_result = snap.team_score > snap.opponent_score
         self.on_ready()
         previous = self.match.state
