@@ -9,7 +9,7 @@ def boot():
 
 def test_lifecycle():
  i=NullInput();w=WalkBot(i);w.start();w.fsm.dispatch("ready")
- w.on_gsi(GsiSnapshot(0,activity="playing",health=100))
+ w.on_gsi(GsiSnapshot(0,activity="playing",health=100,map_name="de_dust2",round_phase="live"))
  assert w.fsm.state==WalkState.NAVIGATING
 
 def test_arrival_releases_input():
