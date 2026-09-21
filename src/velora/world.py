@@ -125,6 +125,16 @@ class WorldModel:
             self._snapshot = replace(self._snapshot, localization=replace(self._snapshot.localization, **changes), updated_at=monotonic())
             return self._snapshot
 
+    def update_vision(self, **changes: Any) -> WorldSnapshot:
+        with self._lock:
+            self._snapshot = replace(self._snapshot, vision=replace(self._snapshot.vision, **changes), updated_at=monotonic())
+            return self._snapshot
+
+    def update_evidence(self, **changes: Any) -> WorldSnapshot:
+        with self._lock:
+            self._snapshot = replace(self._snapshot, evidence=replace(self._snapshot.evidence, **changes), updated_at=monotonic())
+            return self._snapshot
+
     def update_navigation(self, **changes: Any) -> WorldSnapshot:
         with self._lock:
             self._snapshot = replace(self._snapshot, navigation=replace(self._snapshot.navigation, **changes), updated_at=monotonic())
