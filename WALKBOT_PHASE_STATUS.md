@@ -48,3 +48,10 @@ The modernization keeps the external boundary. No memory reader, injection, hook
 - WalkBot navigation avoids duplicate nearest-area queries.
 - Architecture tests enforce DecisionEngine/input separation.
 - Dashboard exposes structured WalkBot telemetry.
+
+
+## Latest hardening
+- GSI health is surfaced through the control-plane status API.
+- Map-mismatch stopping now goes through WalkBot's safety boundary rather than calling the input adapter from Supervisor.
+- Route metadata is synchronized when persisted routes are used for planning.
+- External localization fusion is covered by deterministic tests; no visual coordinates are invented.
