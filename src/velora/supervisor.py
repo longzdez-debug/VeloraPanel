@@ -141,6 +141,7 @@ class Supervisor:
                 account.last_score = None
                 account.last_opponent_score = None
                 account.match_rounds = 0
+                account.match_terminal_latched = False
         self._save_farm()
         return batch
 
