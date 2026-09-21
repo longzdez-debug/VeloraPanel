@@ -20,7 +20,13 @@ class GsiServer:
     try:data=json.loads(body)
     except json.JSONDecodeError:self.send_response(400);self.end_headers();return
     p=data.get("player") or {};st=p.get("state") or {};m=data.get("map") or {};r=data.get("round") or {}
+    ps=st.get("position") or p.get("position") or ""
+    pos=None
+    if isinstance(ps,str):
+     try: pos=tuple(float(x) for x in ps.split())[:3]
+     except ValueError: pos=None
     snap=GsiSnapshot(time.monotonic(),(data.get("provider") or {}).get("timestamp"),m.get("name"),m.get("phase"),r.get("phase"),p.get("activity"),st.get("health"),p.get("steamid"),data)
+    if pos is not None: snap.raw["_velora_position"]=pos
     if outer._on_snapshot:outer._on_snapshot(snap)
     self.send_response(204);self.end_headers()
    def log_message(self,*args):pass
