@@ -14,6 +14,16 @@ from velora.window_guard import Cs2WindowGuard
 from velora.windows import WindowsInput
 
 
+async def _run_supervisor(sup, logger):
+    loop = asyncio.get_running_loop()
+
+    def handle_asyncio_error(loop, context):
+        logger.error("ASYNCIO LOOP ERROR: %s", context.get("message", "unknown"), exc_info=context.get("exception"))
+
+    loop.set_exception_handler(handle_asyncio_error)
+    await sup.run()
+
+
 def main():
     c = Config.from_env()
     os.makedirs(c.data_dir, exist_ok=True)
@@ -21,6 +31,7 @@ def main():
     for check in run_checks(c.data_dir, c.gsi_port, c.dashboard_port, c.gsi_host):
         logger.info("diagnostic %s: %s - %s", check.name, check.ok, check.detail)
 
+    logger.info("VELORA PANEL startup: python=%s pid=%s", os.sys.version.split()[0], os.getpid())
     sup = Supervisor(c)
     store = AccountStore(os.path.join(c.data_dir, "accounts.json"))
     sup.attach_account_store(store)
@@ -57,10 +68,11 @@ def main():
     ui.start()
     logger.info("VELORA PANEL: http://%s:%s", c.dashboard_host, c.dashboard_port)
     try:
-        asyncio.run(sup.run())
+        asyncio.run(_run_supervisor(sup, logger))
     except KeyboardInterrupt:
         logger.info("shutdown requested")
     finally:
+        logger.info("VELORA PANEL shutdown")
         ui.stop()
         sup.stop()
 
