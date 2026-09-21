@@ -58,7 +58,7 @@ def test_observation_freshness_boundaries():
 def test_decision_engine_allows_fresh_world_state_to_move():
     from velora.decision import DecisionEngine
     from velora.navigation import NavigationGoal
-    from velora.world import ObservationValue, WorldModel, LocalizationState
+    from velora.world import ObservationValue, WorldModel
     import time
 
     now = time.monotonic()
