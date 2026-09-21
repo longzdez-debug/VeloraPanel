@@ -167,7 +167,9 @@ class WalkBot:
   if self.fsm.state not in (WalkState.NAVIGATING,WalkState.ARRIVING) or not self.path:return
   position=position or self.last_position
   if position is None:return
-  self.last_position=position;target=self.path[self.index];d=hypot(target.x-position[0],target.y-position[1])
+  self.last_position=position;target=self.path[self.index]
+  self.world.update_navigation(current_area=target.id, progress=(self.index/max(1,len(self.path)-1)) if self.path else 0.0)
+  d=hypot(target.x-position[0],target.y-position[1])
   if d<=self.cfg.arrive_radius:
    self.input.release_all()
    if self.index+1<len(self.path):self.index+=1;self.fsm.dispatch("arrive");self.fsm.dispatch("wait");self.fsm.dispatch("next")
