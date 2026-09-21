@@ -17,6 +17,8 @@ class GsiServer:
   outer=self
   class Handler(BaseHTTPRequestHandler):
    def do_POST(self):
+    if self.command != "POST":
+     self.send_response(405);self.end_headers();return
     try:n=int(self.headers.get("Content-Length","0"));body=self.rfile.read(n)
     except ValueError:self.send_response(400);self.end_headers();return
     try:data=json.loads(body)
@@ -36,7 +38,9 @@ class GsiServer:
     try:rn=int(rn) if rn is not None else None
     except (TypeError,ValueError):rn=None
     snap=GsiSnapshot(time.monotonic(),ts,m.get("name"),m.get("phase"),r.get("phase"),p.get("activity"),st.get("health"),p.get("steamid"),position,forward,rn,data)
-    if outer._on_snapshot:outer._on_snapshot(snap)
+    if outer._on_snapshot:
+     try: outer._on_snapshot(snap)
+     except Exception: pass
     self.send_response(204);self.end_headers()
    def log_message(self,*args):pass
   self._server=ThreadingHTTPServer((self.host,self.port),Handler);Thread(target=self._server.serve_forever,daemon=True).start()
