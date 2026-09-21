@@ -1,6 +1,5 @@
 import asyncio
 import os
-
 from .account import Account
 from .accounts import AccountStore
 from .config import Config
@@ -12,7 +11,6 @@ from .supervisor import Supervisor
 from .walkbot import WalkBot
 from .window_guard import Cs2WindowGuard
 from .windows import WindowsInput
-
 
 def main():
     c = Config.from_env()
@@ -38,13 +36,8 @@ def main():
         else:
             adapter = NullInput()
         account = Account(
-            p.id,
-            p.name,
-            WalkBot(adapter),
-            p.steam_id or None,
-            enabled=p.enabled,
-            executable=p.executable,
-            launch_args=list(p.launch_args),
+            p.id, p.name, WalkBot(adapter), p.steam_id or None,
+            enabled=p.enabled, executable=p.executable, launch_args=list(p.launch_args),
         )
         account.walkbot.enabled = bool(p.walkbot)
         sup.add_account(account)
@@ -59,7 +52,6 @@ def main():
     finally:
         ui.stop()
         sup.stop()
-
 
 if __name__ == "__main__":
     main()
