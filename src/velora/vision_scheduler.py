@@ -18,10 +18,14 @@ class VisionScheduler:
 
  def should_run_light(self,now=None):
   now=monotonic() if now is None else now
-  if now-self._last_light < self.light_interval:return False
+  if now-self._last_light < self.light_interval:
+   self.stats=PipelineStats(self.stats.capture_frames,self.stats.vision_frames,self.stats.dropped_frames+1,self.stats.last_capture_at,self.stats.last_vision_at)
+   return False
   self._last_light=now;return True
 
  def should_run_heavy(self,now=None):
   now=monotonic() if now is None else now
-  if now-self._last_heavy < self.heavy_interval:return False
+  if now-self._last_heavy < self.heavy_interval:
+   self.stats=PipelineStats(self.stats.capture_frames,self.stats.vision_frames,self.stats.dropped_frames+1,self.stats.last_capture_at,self.stats.last_vision_at)
+   return False
   self._last_heavy=now;return True
