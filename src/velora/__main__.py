@@ -1,16 +1,18 @@
 import asyncio
 import os
-from .account import Account
-from .accounts import AccountStore
-from .config import Config
-from .dashboard import Dashboard
-from .diagnostics import run_checks
-from .input import NullInput
-from .log import configure_logging
-from .supervisor import Supervisor
-from .walkbot import WalkBot
-from .window_guard import Cs2WindowGuard
-from .windows import WindowsInput
+
+from velora.account import Account
+from velora.accounts import AccountStore
+from velora.config import Config
+from velora.dashboard import Dashboard
+from velora.diagnostics import run_checks
+from velora.input import NullInput
+from velora.log import configure_logging
+from velora.supervisor import Supervisor
+from velora.walkbot import WalkBot
+from velora.window_guard import Cs2WindowGuard
+from velora.windows import WindowsInput
+
 
 def main():
     c = Config.from_env()
@@ -61,6 +63,7 @@ def main():
     finally:
         ui.stop()
         sup.stop()
+
 
 if __name__ == "__main__":
     main()
