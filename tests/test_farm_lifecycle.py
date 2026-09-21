@@ -331,3 +331,19 @@ def test_scheduler_uses_wall_clock_while_orchestrator_uses_monotonic():
     scheduler.add(Job("x", "a", next_run=now))
     assert scheduler.next(now=now) is not None
     assert monotonic() != now
+
+
+def test_farming_batch_without_runtime_identity_fails_closed(tmp_path):
+    from velora.config import Config
+    from velora.supervisor import Supervisor
+    from velora.farm import BatchState
+    from velora.storage import JsonStore
+
+    data_dir = str(tmp_path / "velora")
+    JsonStore(f"{data_dir}/farm.json").save([{
+        "id": "b", "state": "farming", "mode": "deathmatch",
+        "account_ids": ["a"], "size": 1,
+    }])
+    sup = Supervisor(Config(data_dir=data_dir))
+    assert sup.farm.batches["b"].state == BatchState.ERROR
+    assert "runtime is missing" in sup.farm.batches["b"].errors[-1]
