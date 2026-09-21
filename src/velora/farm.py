@@ -7,6 +7,7 @@ from time import time
 from .account_pool import AccountPool, FarmStatus
 from .resource import ResourceManager
 from .match_director import MatchDirector
+from .scenario import ScenarioEngine
 
 
 class FarmMode(str, Enum):
@@ -43,6 +44,7 @@ class FarmBatch:
     finished_at: float | None = None
     errors: list[str] = field(default_factory=list)
     director: MatchDirector = field(default_factory=MatchDirector)
+    scenario: ScenarioEngine = field(default_factory=ScenarioEngine)
 
     @property
     def size(self) -> int:
@@ -86,6 +88,10 @@ class FarmManager:
                for account_id in batch.account_ids):
             self.resources.stop_batch(batch.id)
             raise RuntimeError("batch contains disabled or unavailable account")
+        batch.scenario.load(batch.mode)
+        if batch.scenario.current.required_players > 1 and batch.size != batch.scenario.current.required_players:
+            self.resources.stop_batch(batch.id)
+            raise ValueError(f"{batch.mode} requires {batch.scenario.current.required_players} accounts")
         batch.director.prepare(batch.size)
         batch.state = BatchState.SELECTING
         batch.started_at = time()
@@ -144,6 +150,7 @@ class FarmManager:
         batch = self.batches[batch_id]
         batch.director.match_found(match_id)
         batch.state = BatchState.FARMING
+        batch.scenario.start()
         return batch
 
     def load_snapshot(self, items: list[dict]) -> None:
