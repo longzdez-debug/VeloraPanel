@@ -25,8 +25,13 @@ class Account:
    (s.STOPPING,"reset",s.OFFLINE)]:self.fsm.allow(a,e,b)
   for a in (s.STARTING,s.MENU,s.QUEUING,s.IN_MATCH):self.fsm.allow(a,"error",s.ERROR)
  def start(self):
-  if self.enabled and self.fsm.state==AccountState.OFFLINE:
-   self.fsm.dispatch("start");self.walkbot.start()
+  if not self.enabled:
+   return
+  if self.fsm.state==AccountState.ERROR:
+   self.fsm.dispatch("reset")
+  if self.fsm.state==AccountState.OFFLINE:
+   self.fsm.dispatch("start")
+  self.walkbot.start()
  def on_ready(self):
   if self.fsm.state==AccountState.STARTING:self.fsm.dispatch("ready")
  def on_gsi(self,snap:GsiSnapshot):
