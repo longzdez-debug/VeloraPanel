@@ -162,3 +162,42 @@ def test_manual_mode_allows_multi_account_batches():
     farm.start_batch("manual-many")
     assert batch.size == 3
     assert batch.scenario.current.required_players == 3
+
+def test_duplicate_round_updates_count_once_and_overtime_continues():
+    from velora.rounds import MatchTracker, RoundState
+    tracker = MatchTracker()
+    tracker.update("de_dust2", "live", 1)
+    tracker.update("de_dust2", "live", 1)
+    assert tracker.rounds_seen == 1
+    tracker.update("de_dust2", "over", 1)
+    assert tracker.state == RoundState.OVER
+    tracker.update("de_dust2", "live", 2)
+    tracker.update("de_dust2", "live", 2)
+    assert tracker.rounds_seen == 2
+    tracker.update("de_dust2", "halftime", 2)
+    assert tracker.state == RoundState.HALFTIME
+    tracker.update("de_dust2", "live", 3)
+    assert tracker.rounds_seen == 3
+
+
+def test_round_over_does_not_end_account_match_but_map_gameover_does():
+    from velora.account import Account
+    from velora.model import AccountState, GsiSnapshot
+    from velora.walkbot import WalkBot
+
+    class Input:
+        def release_all(self): pass
+        def move(self, forward, back, left, right): pass
+
+    account = Account("a", "A", WalkBot(Input()))
+    account.start()
+    account.on_gsi(GsiSnapshot(1.0, activity="playing", map_name="de_dust2", map_phase="live", round_phase="live", round_number=1))
+    assert account.fsm.state == AccountState.IN_MATCH
+    account.on_gsi(GsiSnapshot(2.0, activity="playing", map_name="de_dust2", map_phase="live", round_phase="over", round_number=1))
+    assert account.fsm.state == AccountState.IN_MATCH
+    account.on_gsi(GsiSnapshot(3.0, activity="playing", map_name="de_dust2", map_phase="live", round_phase="freezetime", round_number=2))
+    assert account.fsm.state == AccountState.IN_MATCH
+    assert account.match_rounds == 2
+    account.on_gsi(GsiSnapshot(4.0, activity="playing", map_name="de_dust2", map_phase="gameover", round_phase="gameover", round_number=30, player_team="CT", team_score=16, opponent_score=12))
+    assert account.fsm.state == AccountState.MENU
+    assert account.last_match_result is True
