@@ -59,7 +59,9 @@ class Supervisor:
             self.accounts.append(a)
         self.pool.add(a)
         self._bind_walkbot(a)
-        self.scheduler.add(Job(f"account:{a.id}", a.id, enabled=False))
+        existing = self.scheduler.get(f"account:{a.id}")
+        if existing is None:
+            self.scheduler.add(Job(f"account:{a.id}", a.id, enabled=False))
 
     def _bind_walkbot(self, a):
         def replan(position):
@@ -310,12 +312,28 @@ class Supervisor:
                 scheduler_now = time()
                 job = self.scheduler.next(scheduler_now)
                 if job is not None and not self.kill_switch:
-                    self.scheduler.mark_active(job.id)
-                    try:
-                        self.start_account(job.account_id)
-                        self.scheduler.mark_done(job.id, success=True)
-                    except Exception:
-                        self.scheduler.mark_done(job.id, success=False)
+                    account = self.get_account(job.account_id)
+                    # A scheduler job must never launch an account that is
+                    # already owned by a live farm batch or process.
+                    if account is None or account.process_id or any(
+                        job.account_id in batch.account_ids
+                        and batch.state in (
+                            BatchState.SELECTING,
+                            BatchState.STARTING,
+                            BatchState.WAITING_FOR_READY,
+                            BatchState.FARMING,
+                            BatchState.STOPPING,
+                        )
+                        for batch in self.farm.batches.values()
+                    ):
+                        self.scheduler.mark_done(job.id, success=True, now=scheduler_now)
+                    else:
+                        self.scheduler.mark_active(job.id)
+                        try:
+                            self.start_account(job.account_id)
+                            self.scheduler.mark_done(job.id, success=True, now=scheduler_now)
+                        except Exception:
+                            self.scheduler.mark_done(job.id, success=False, now=scheduler_now)
                 self.orchestrator.tick(now)
                 self._save_farm()
                 for a in self.accounts:
@@ -348,14 +366,28 @@ class Supervisor:
 
     def stop(self):
         self.running = False
-        self._save_farm()
+        # Persist the post-shutdown state, never a pre-shutdown FARMING snapshot.
+        for batch in list(self.farm.batches.values()):
+            if batch.state not in (BatchState.FINISHED, BatchState.STOPPING, BatchState.IDLE):
+                try:
+                    self.stop_batch(batch.id)
+                except Exception as exc:
+                    batch.errors.append(f"shutdown stop failed: {exc}")
         for a in self.accounts:
-            if a.process_id:
-                self.processes.terminate(a.process_id)
-                a.process_id = None
-            self.resources.stop_account(a.id)
+            try:
+                if a.process_id:
+                    self.processes.terminate(a.process_id)
+            except Exception:
+                pass
+            a.process_id = None
             a.started_at = None
+            self.resources.stop_account(a.id)
             guard = self.window_guards.get(a.id)
             if guard is not None and hasattr(guard, "bind"):
                 guard.bind(None)
             a.walkbot.stop()
+            try:
+                a.stop()
+            except Exception:
+                pass
+        self._save_farm()
