@@ -17,3 +17,12 @@ def test_route_database_import_store_bridges_persistent_graph(tmp_path):
     assert entry.map_name == "de_dust2"
     assert [node.id for node in entry.nodes] == ["a", "b"]
     assert db.select("de_dust2", tags=("safe",)).route_id == "main"
+
+
+def test_route_database_replaces_same_route_id_without_duplicates():
+    graph = RouteGraph()
+    graph.add(Node("a", 0, 0, 0))
+    db = RouteDatabase()
+    db.import_graph("map", graph, route_id="default")
+    db.import_graph("map", graph, route_id="default")
+    assert len(db.candidates("map")) == 1
