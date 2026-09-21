@@ -285,7 +285,8 @@ class Supervisor:
         try:
             while self.running:
                 now = monotonic()
-                job = self.scheduler.next(now)
+                scheduler_now = time()
+                job = self.scheduler.next(scheduler_now)
                 if job is not None and not self.kill_switch:
                     self.scheduler.mark_active(job.id)
                     try:
