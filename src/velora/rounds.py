@@ -17,6 +17,7 @@ class MatchTracker:
     match_id: int = 0
 
     def update(self, map_name, phase, round_number=None):
+        previous = self.state
         if map_name and self.map_name and map_name != self.map_name:
             self.match_id += 1
             self.round_number = None
@@ -34,6 +35,14 @@ class MatchTracker:
             self.state = RoundState.GAME_OVER
         elif p in {"warmup"}:
             self.state = RoundState.UNKNOWN
+
+        # A live transition after a terminal/non-live state is a new match
+        # even when the map name is unchanged. This gives the orchestrator a
+        # stable per-account generation without inventing a provider field.
+        if self.state == RoundState.LIVE and previous in {
+            RoundState.UNKNOWN, RoundState.OVER, RoundState.GAME_OVER
+        }:
+            self.match_id += 1
         return self.state
 
     def reset(self):
