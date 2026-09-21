@@ -107,6 +107,13 @@ def test_gsi_extracts_explicit_team_result_data():
         server.stop()
 
 
+def test_gsi_snapshot_reports_freshness_and_packet_counters():
+    server = GsiServer()
+    assert server.snapshot()["connected"] is False
+    assert server.snapshot()["packet_count"] == 0
+    assert server.snapshot()["stale"] is True
+
+
 def test_gsi_does_not_invent_result_without_final_score():
     import socket
     from http.client import HTTPConnection
