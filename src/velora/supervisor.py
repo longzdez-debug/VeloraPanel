@@ -105,6 +105,7 @@ class Supervisor:
             r = self.launcher.start(a.executable, a.launch_args)
             a.process_id = r.identity.pid
             a.executable = r.executable
+            a.started_at = monotonic()
             guard = self.window_guards.get(a.id)
             if guard is not None and hasattr(guard, "bind"):
                 guard.bind(a.process_id)
@@ -131,6 +132,7 @@ class Supervisor:
     def _process_death(self, a):
         pid = a.process_id
         a.process_id = None
+        a.started_at = None
         a.walkbot.emergency_stop()
         guard = self.window_guards.get(a.id)
         if guard is not None and hasattr(guard, "bind"):
@@ -159,6 +161,9 @@ class Supervisor:
                 for a in self.accounts:
                     if a.process_id and not self.processes.alive(a.process_id):
                         self._process_death(a)
+                    if (a.process_id and a.started_at and a.last_gsi is None and now - a.started_at > self.config.process_start_timeout):
+                        a.errors.append(f"startup readiness timeout ({self.config.process_start_timeout:.0f}s)")
+                        self._process_death(a)
                     if (a.process_id is None and a.next_restart_at and now >= a.next_restart_at
                             and a.restart_count <= self.config.watchdog_max_restarts and not self.kill_switch):
                         a.next_restart_at = 0.0
@@ -182,6 +187,7 @@ class Supervisor:
             if a.process_id:
                 self.processes.terminate(a.process_id)
                 a.process_id = None
+            a.started_at = None
             guard = self.window_guards.get(a.id)
             if guard is not None and hasattr(guard, "bind"):
                 guard.bind(None)
