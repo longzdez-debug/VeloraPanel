@@ -37,11 +37,9 @@ class Cs2Launcher:
             deadline = time.monotonic() + 30.0
             while time.monotonic() < deadline:
                 try:
-                    candidates = [x for x in self.processes.owned if self.processes.alive(x)]
-                    for pid in candidates:
-                        ident = self.processes.owned[pid]
-                        if Path(ident.executable).resolve() == exe.resolve():
-                            return LaunchResult(ident, str(exe), True)
+                    ident = self.processes.find_and_claim(str(exe))
+                    if ident is not None:
+                        return LaunchResult(ident, str(exe), True)
                 except OSError:
                     pass
                 time.sleep(0.25)
