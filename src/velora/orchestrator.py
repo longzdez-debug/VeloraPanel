@@ -160,7 +160,7 @@ class FarmOrchestrator:
 
             accounts = [self.s.get_account(x) for x in batch.account_ids]
             if batch.state == BatchState.FARMING and runtime.match_key is not None:
-                if any(a is None or a.process_id is None for a in accounts):
+                if any(a is None or a.process_id is None or a.fsm.state == AccountState.ERROR for a in accounts):
                     if self._recover_farming(batch, runtime, now):
                         changed = True
                         continue
