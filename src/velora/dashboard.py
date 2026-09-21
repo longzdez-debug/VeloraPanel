@@ -43,7 +43,7 @@ class Dashboard:
     p=unquote(urlparse(self.path).path)
     if p=="/api/status":
      now=time.monotonic()
-     return self._json({"running":outer.s.running,"kill_switch":outer.s.kill_switch,"accounts":[{"id":a.id,"name":a.name,"state":a.fsm.state.value,"match":a.match_state().value,"round":a.match.round_number,"walkbot":a.walkbot.fsm.state.value,"process_id":a.process_id,"route_map":a.route_map,"route_goal":a.route_goal,"gsi_age":None if a.walkbot.last_gsi is None else max(0,now-a.walkbot.last_gsi),"errors":a.errors[-5:]} for a in outer.s.accounts]})
+     return self._json({"running":outer.s.running,"kill_switch":outer.s.kill_switch,"accounts":[{"id":a.id,"name":a.name,"state":a.fsm.state.value,"match":a.match_state().value,"round":a.match.round_number,"walkbot":a.walkbot.fsm.state.value,"process_id":a.process_id,"route_map":a.route_map,"route_goal":a.route_goal,"gsi_age":None if a.walkbot.last_gsi is None else max(0,now-a.walkbot.last_gsi),"errors":a.errors[-5:],"restart_count":a.restart_count,"next_restart_at":a.next_restart_at,"started_at":a.started_at} for a in outer.s.accounts]})
     if p=="/api/routes":
      return self._json({"maps":outer.s.route_store.maps()})
     if p.startswith("/api/routes/"):
@@ -55,6 +55,7 @@ class Dashboard:
     p=unquote(urlparse(self.path).path);parts=[x for x in p.split("/") if x]
     try:
      if parts==["api","emergency-stop"]:outer.s.emergency_stop();return self._json({"ok":True})
+     if parts==["api","kill-switch","clear"]:outer.s.clear_kill_switch();return self._json({"ok":True})
      if len(parts)==4 and parts[:2]==["api","accounts"]:
       a=outer.s.get_account(parts[2])
       if not a:return self._json({"error":"account not found"},404)
