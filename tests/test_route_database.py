@@ -26,3 +26,12 @@ def test_route_database_replaces_same_route_id_without_duplicates():
     db.import_graph("map", graph, route_id="default")
     db.import_graph("map", graph, route_id="default")
     assert len(db.candidates("map")) == 1
+
+
+def test_route_database_add_replaces_same_route_id():
+    db = RouteDatabase()
+    graph = RouteGraph()
+    graph.add(Node("a", 0, 0, 0))
+    db.add(db.import_graph("map", graph, route_id="r1"))
+    db.add(db.import_graph("map", graph, route_id="r1"))
+    assert [r.route_id for r in db.candidates("map")] == ["r1"]
