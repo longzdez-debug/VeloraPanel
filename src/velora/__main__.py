@@ -41,6 +41,14 @@ def main():
             enabled=p.enabled, executable=p.executable, launch_args=list(p.launch_args),
         )
         account.walkbot.enabled = bool(p.walkbot)
+        account.route_map = getattr(p, "route_map", None)
+        account.route_start = getattr(p, "route_start", None)
+        account.route_goal = getattr(p, "route_goal", None)
+        if account.route_map and account.route_goal:
+            try:
+                sup.set_route(account.id, account.route_map, account.route_start or account.route_goal, account.route_goal)
+            except Exception:
+                pass
         sup.add_account(account)
 
     ui = Dashboard(sup, c.dashboard_host, c.dashboard_port)
