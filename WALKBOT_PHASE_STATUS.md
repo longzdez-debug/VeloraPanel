@@ -39,3 +39,12 @@ The modernization keeps the external boundary. No memory reader, injection, hook
 - Legacy waypoint paths remain supported without requiring a navigation graph.
 - Architecture guard test rejects forbidden process-memory/injection primitives in `src/velora`.
 - GitHub Actions CI was triggered by the latest commits; final runtime/build verification remains Windows-environment dependent.
+
+
+## Hardening checkpoint
+- RouteStore -> RouteDatabase bridge added without replacing existing persistence.
+- Replay loading can enforce a bounded event window.
+- Vision pipeline records capture, inference and dropped-frame metrics.
+- WalkBot navigation avoids duplicate nearest-area queries.
+- Architecture tests enforce DecisionEngine/input separation.
+- Dashboard exposes structured WalkBot telemetry.
