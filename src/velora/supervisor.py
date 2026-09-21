@@ -107,8 +107,8 @@ class Supervisor:
         self.runtime_store.save("scheduler", self.scheduler.snapshot())
         self.runtime_store.save("orchestrator", self.orchestrator.snapshot())
 
-    def create_batch(self, batch_id, account_ids, mode="manual", target_xp=None):
-        result=self.farm.create_batch(batch_id, list(account_ids), mode=mode, target_xp=target_xp); self._save_farm(); return result
+    def create_batch(self, batch_id, account_ids, mode="manual", target_xp=None, repeat=False, max_matches=None):
+        result=self.farm.create_batch(batch_id, list(account_ids), mode=mode, target_xp=target_xp, repeat=repeat, max_matches=max_matches); self._save_farm(); return result
 
     def start_batch(self, batch_id):
         batch = self.farm.start_batch(batch_id)
