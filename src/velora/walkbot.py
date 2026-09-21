@@ -8,6 +8,7 @@ from .model import GsiSnapshot,WalkState
 from .movement import Navigator
 from .world import WorldModel
 from .gsi_normalizer import GsiNormalizer
+from .replay import ReplaySession
 
 @dataclass(frozen=True)
 class Waypoint:
@@ -30,7 +31,7 @@ class InputAdapter:
  def move(self,forward,back,left,right): pass
 
 class WalkBot:
- def __init__(self,input_adapter,config=None,replan:Callable[[tuple[float,float,float]],bool]|None=None):
+ def __init__(self,input_adapter,config=None,replan:Callable[[tuple[float,float,float]],bool]|None=None,replay:ReplaySession|None=None):
   self.input=input_adapter;self.cfg=config or WalkConfig();self.replan=replan
   self.fsm=StateMachine(WalkState.DISABLED);self._configure()
   self.path:list[Waypoint]=[];self.index=0
@@ -40,6 +41,7 @@ class WalkBot:
   self.navigator=Navigator();self.enabled=True
   self.world=WorldModel()
   self.gsi_normalizer=GsiNormalizer()
+  self.replay=replay
   self.last_tick=None
   self.last_command=None
   self.recovery_reason=None
@@ -124,6 +126,8 @@ class WalkBot:
 
  def on_gsi(self,snap:GsiSnapshot):
   self.gsi_normalizer.publish(snap,self.world)
+  if self.replay is not None:
+   self.replay.record("WalkBot.GsiUpdated",snap.received_at,{"map":snap.map_name,"activity":snap.activity,"health":snap.health,"position":list(snap.position) if snap.position else None})
   self.last_gsi=monotonic();self.last_position=snap.position or self.last_position
   self.last_forward=snap.forward or self.last_forward
   activity=(snap.activity or "").lower()
@@ -178,3 +182,5 @@ class WalkBot:
   c=self.navigator.command(position,(target.x,target.y),self.last_forward)
   self.last_command={"forward":bool(c.forward),"back":bool(c.back),"left":bool(c.left),"right":bool(c.right)}
   self.input.move(c.forward,c.back,c.left,c.right)
+  if self.replay is not None:
+   self.replay.record("WalkBot.MovementCommand",now,{"forward":bool(c.forward),"back":bool(c.back),"left":bool(c.left),"right":bool(c.right)})
