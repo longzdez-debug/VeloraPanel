@@ -74,13 +74,19 @@ const I18N={ru:{
 function t(s){return I18N.ru[String(s)]||String(s)}
 function localizeDynamic(s){
  let v=String(s);
- Object.keys(I18N.ru).sort((a,b)=>b.length-a.length).forEach(k=>{if(v.includes(k))v=v.split(k).join(I18N.ru[k])});
+ const exact=I18N.ru[v];
+ if(exact)return exact;
+ const states={offline:'НЕ В СЕТИ',starting:'ЗАПУСК',menu:'МЕНЮ',queuing:'ПОИСК МАТЧА',in_match:'В МАТЧЕ',stopping:'ОСТАНОВКА',error:'ОШИБКА',unknown:'НЕИЗВЕСТНО',waiting:'ОЖИДАНИЕ',live:'В ИГРЕ',round_over:'РАУНД ЗАВЕРШЁН',game_over:'МАТЧ ЗАВЕРШЁН',disabled:'ОТКЛЮЧЁН',initializing:'ИНИЦИАЛИЗАЦИЯ',waiting_for_game:'ОЖИДАНИЕ ИГРЫ',waiting_for_spawn:'ОЖИДАНИЕ ПОЯВЛЕНИЯ',navigating:'НАВИГАЦИЯ',arriving:'ПРИБЫТИЕ',stuck:'ЗАСТРЯЛ',recovering:'ВОССТАНОВЛЕНИЕ',replanning:'ПЕРЕПЛАНИРОВАНИЕ',fault:'СБОЙ',running:'РАБОТАЕТ',active:'АКТИВЕН',stopped:'ОСТАНОВЛЕН',ready:'ГОТОВ',scheduled:'ЗАПЛАНИРОВАН'};
+ if(Object.prototype.hasOwnProperty.call(states,v))return states[v];
  v=v.replace(/^([0-9]+) accounts$/,'$1 аккаунтов').replace(/^([0-9]+) account\(s\)$/,'$1 аккаунтов').replace(/^([0-9]+) \/ ([0-9]+) ready$/,'$1 / $2 готово');
- v=v.replace(/^(\d+) nodes · (\d+) edges$/,'$1 узлов · $2 связей');
- v=v.replace(/^● VALID · (\d+) nodes · (\d+) edges$/,'● ДЕЙСТВИТЕЛЬНО · $1 узлов · $2 связей');
- v=v.replace(/^● INVALID · (\d+) issues$/,'● ОШИБОК: $1');
- v=v.replace(/^(\d+) lines · /,'$1 строк · ');
- v=v.replace(/ · match /,' · матч '); v=v.replace(/^START requested$/,'Запуск запрошен').replace(/^STOP requested$/,'Остановка запрошена').replace(/^KILL requested$/,'Завершение запрошено').replace(/^RECOVER requested$/,'Восстановление запрошено').replace(/^DELETE requested$/,'Удаление запрошено');
+ v=v.replace(/^([0-9]+) nodes · ([0-9]+) edges$/,'$1 узлов · $2 связей');
+ v=v.replace(/^● VALID · ([0-9]+) nodes · ([0-9]+) edges$/,'● ДЕЙСТВИТЕЛЬНО · $1 узлов · $2 связей');
+ v=v.replace(/^● INVALID · ([0-9]+) issues$/,'● ОШИБОК: $1');
+ v=v.replace(/^([0-9]+) lines · /,'$1 строк · ');
+ v=v.replace(/ · match /,' · матч ');
+ const exactOps={'START requested':'Запуск запрошен','STOP requested':'Остановка запрошена','KILL requested':'Завершение запрошено','RECOVER requested':'Восстановление запрошено','DELETE requested':'Удаление запрошено'};
+ if(Object.prototype.hasOwnProperty.call(exactOps,v))return exactOps[v];
+ Object.keys(I18N.ru).sort((a,b)=>b.length-a.length).forEach(k=>{if(v.includes(k))v=v.split(k).join(I18N.ru[k])});
  return v
 }
 function localizeDom(){const walk=n=>{n.childNodes.forEach(ch=>{if(ch.nodeType===3){const raw=ch.nodeValue||'',trim=raw.trim();const v=localizeDynamic(trim);if(v!==trim)ch.nodeValue=raw.replace(trim,v)}else if(ch.nodeType===1&&ch.id!=='language'&&ch.tagName!=='SCRIPT'&&ch.tagName!=='STYLE'){['placeholder','title','aria-label'].forEach(a=>{if(ch.hasAttribute(a)){const v=ch.getAttribute(a);const nv=localizeDynamic(v);if(nv!==v)ch.setAttribute(a,nv)}});walk(ch)}})};walk(document.body)}
@@ -208,7 +214,11 @@ class Dashboard:
     p=unquote(urlparse(self.path).path);parts=[x for x in p.split("/") if x]
     try:
      if parts==["api","client-error"]:
-      d=self._body();outer.logger.error("CLIENT ERROR message=%s source=%s line=%s column=%s",str(d.get("message","")),str(d.get("source","")),d.get("line",0),d.get("column",0));return self._json({"ok":True})
+      d=self._body()
+      message=str(d.get("message",""))
+      level="debug" if message=="CLIENT BOOT SCRIPT REACHED" else "error"
+      getattr(outer.logger,level)("CLIENT ERROR message=%s source=%s line=%s column=%s",message,str(d.get("source","")),d.get("line",0),d.get("column",0))
+      return self._json({"ok":True})
      if parts==["api","emergency-stop"]:outer.logger.warning("EMERGENCY STOP requested");outer._event("safety","Emergency stop requested",level="warning");outer.s.emergency_stop();outer._event("safety","Emergency stop completed",level="warning");return self._json({"ok":True})
      if parts==["api","kill-switch","clear"]:outer.logger.warning("KILL SWITCH clear requested");outer.s.clear_kill_switch();outer._event("safety","Kill switch cleared",level="warning");return self._json({"ok":True})
      if parts==["api","settings","language"]:
