@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from time import monotonic
+from time import monotonic, time
 
 from .farm import BatchState
 from .match_director import MatchDirectorState
@@ -158,10 +158,14 @@ class FarmOrchestrator:
             if batch.state == BatchState.FARMING and self._all_game_over(batch, runtime):
                 batch.scenario.complete_match()
                 runtime.last_match_counted += 1
+                duration = max(0.0, time() - batch.started_at) if batch.started_at else 0.0
+                finished_at = time()
                 for account_id in batch.account_ids:
                     self.s.stats.record_match(account_id, match_count=1)
-                    self.s.pool.farm[account_id].matches_played += 1
-                    self.s.pool.farm[account_id].last_farm_at = now
+                    state = self.s.pool.farm[account_id]
+                    state.matches_played += 1
+                    state.farm_seconds += duration
+                    state.last_farm_at = finished_at
                 batch.director.finish()
                 self.s.farm.finish_batch(batch.id, True)
                 changed = True
