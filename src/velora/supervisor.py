@@ -94,7 +94,7 @@ class Supervisor:
         ))
 
     def add_account(self, a):
-        self.logger.info("account added id=%s name=%s enabled=%s", a.id, a.name, a.enabled)
+        self.logger.info("account added id=%s name=%s enabled=%s", a.id, getattr(a, "name", "<unnamed>"), a.enabled)
         if not any(x.id == a.id for x in self.accounts):
             self.accounts.append(a)
         self.pool.add(a)
