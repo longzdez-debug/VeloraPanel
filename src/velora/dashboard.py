@@ -44,7 +44,7 @@ function confirmAction(t,p,fn){$('modalTitle').textContent=t;$('modalText').text
 function go(p){document.querySelectorAll('.page').forEach(x=>x.classList.toggle('active',x.id===p));document.querySelectorAll('.nav button').forEach(x=>x.classList.toggle('active',x.dataset.page===p));const b=document.querySelector('.nav button[data-page="'+p+'"]');$('pageTitle').textContent=b?b.textContent.trim():p}
 document.querySelectorAll('.nav button').forEach(x=>x.onclick=()=>go(x.dataset.page));
 const I18N={ru:{
-'Dashboard':'Панель управления','Accounts':'Аккаунты','Batches':'Задания','Account FSM':'FSM аккаунтов','Match FSM':'FSM матчей','WalkBot':'WalkBot','GSI':'GSI','Route Editor':'Редактор маршрутов','Diagnostics':'Диагностика','Logs':'Журнал логов',
+'Dashboard':'Панель управления','Accounts':'Аккаунты','Batches':'Задания','Account FSM':'FSM аккаунтов','Match FSM':'FSM матчей','WalkBot':'WalkBot','GSI':'GSI','Route Editor':'Редактор маршрутов','Diagnostics':'Диагностика','Logs':'Журнал логов','EVENT TIMELINE':'ЖУРНАЛ СОБЫТИЙ','Operator actions and safety events':'Действия оператора и события безопасности','local control plane':'локальный контур управления','AUTOMATION':'АВТОМАТИЗАЦИЯ','TELEMETRY':'ТЕЛЕМЕТРИЯ','NAVIGATION':'НАВИГАЦИЯ','GSI AGE':'ДАВНОСТЬ GSI','AGE':'ДАВНОСТЬ','Local':'Локальный','local':'локальный','available':'доступно','runtime available':'среда выполнения доступна','not found':'не найдено','is already in use':'уже используется','is available':'доступен','No diagnostic data.':'Нет данных диагностики.',
 'CONTROL':'УПРАВЛЕНИЕ','MANAGEMENT':'УПРАВЛЕНИЕ','FARM CONTROL CENTER':'ЦЕНТР УПРАВЛЕНИЯ ФАРМИНГОМ','CONTROL PLANE':'ЦЕНТР УПРАВЛЕНИЯ','Command Center':'Командный центр',
 'Real-time account orchestration, FSM, matches, WalkBot and telemetry.':'Управление аккаунтами, FSM, матчами, WalkBot и телеметрией в реальном времени.',
 'ACTIVE ACCOUNTS':'АКТИВНЫЕ АККАУНТЫ','Live supervisor snapshot':'Текущее состояние супервизора','SYSTEM HEALTH':'СОСТОЯНИЕ СИСТЕМЫ','Latest diagnostics':'Последняя диагностика',
@@ -86,7 +86,13 @@ function localizeDynamic(s){
  v=v.replace(/ · match /,' · матч ');
  const exactOps={'START requested':'Запуск запрошен','STOP requested':'Остановка запрошена','KILL requested':'Завершение запрошено','RECOVER requested':'Восстановление запрошено','DELETE requested':'Удаление запрошено'};
  if(Object.prototype.hasOwnProperty.call(exactOps,v))return exactOps[v];
- Object.keys(I18N.ru).sort((a,b)=>b.length-a.length).forEach(k=>{if(v.includes(k))v=v.split(k).join(I18N.ru[k])});
+ // Exact phrases and explicit word tokens only. Never replace arbitrary substrings:
+ // e.g. "ready" must not corrupt "already".
+ const tokenMap=I18N.ru;
+ v=v.replace(/[A-Za-z_][A-Za-z0-9_]*/g,word=>{
+   const key=Object.prototype.hasOwnProperty.call(tokenMap,word)?word:word.toUpperCase();
+   return Object.prototype.hasOwnProperty.call(tokenMap,key)?tokenMap[key]:word;
+ });
  return v
 }
 function localizeDom(){const walk=n=>{n.childNodes.forEach(ch=>{if(ch.nodeType===3){const raw=ch.nodeValue||'',trim=raw.trim();const v=localizeDynamic(trim);if(v!==trim)ch.nodeValue=raw.replace(trim,v)}else if(ch.nodeType===1&&ch.id!=='language'&&ch.tagName!=='SCRIPT'&&ch.tagName!=='STYLE'){['placeholder','title','aria-label'].forEach(a=>{if(ch.hasAttribute(a)){const v=ch.getAttribute(a);const nv=localizeDynamic(v);if(nv!==v)ch.setAttribute(a,nv)}});walk(ch)}})};walk(document.body)}
