@@ -124,14 +124,21 @@ class FarmOrchestrator:
             if not runtime.recovery_claimed:
                 self.s.farm.recover_farming_batch(batch.id)
                 runtime.recovery_claimed = True
+            started = []
             for account_id in batch.account_ids:
                 self.s.start_account(account_id)
+                started.append(account_id)
             runtime.ready.clear()
             runtime.ready_since = None
             runtime.search_since = None
             runtime.last_error = None
             return True
         except Exception as exc:
+            for account_id in locals().get("started", []):
+                try:
+                    self.s.stop_account(account_id)
+                except Exception:
+                    pass
             runtime.retries += 1
             runtime.last_error = f"in-match recovery failed: {exc}"
             runtime.next_retry = now + self.retry_delay * (2 ** min(runtime.retries, 5))
