@@ -109,10 +109,10 @@ class Supervisor:
         a = self.get_account(account_id)
         if a is None:
             raise KeyError(account_id)
-        if a.process_id or a.fsm.state != AccountState.OFFLINE:
-            self.stop_account(account_id)
         if any(account_id in b.account_ids and b.state not in (BatchState.IDLE, BatchState.FINISHED, BatchState.ERROR) for b in self.farm.batches.values()):
             raise RuntimeError("account is used by an active batch")
+        if a.process_id or a.fsm.state != AccountState.OFFLINE:
+            self.stop_account(account_id)
         self.scheduler.remove(f"account:{account_id}")
         self.pool.remove(account_id)
         self.accounts = [item for item in self.accounts if item.id != account_id]
