@@ -1,4 +1,6 @@
-from types import SimpleNamespace\n\nfrom velora.config import Config
+from types import SimpleNamespace
+
+from velora.config import Config
 from velora.farm import BatchState
 from velora.supervisor import Supervisor
 
