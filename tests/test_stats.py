@@ -49,3 +49,10 @@ def test_match_score_and_duration_roundtrip():
     assert stats.last_score == 16
     assert stats.last_opponent_score == 12
     assert stats.last_match_duration == 123.5
+
+def test_match_round_count_roundtrips():
+    store = StatsStore()
+    store.record_match("a", xp_delta=25, rounds=31)
+    restored = StatsStore()
+    restored.load_snapshot(store.snapshot())
+    assert restored.get("a").last_rounds == 31
