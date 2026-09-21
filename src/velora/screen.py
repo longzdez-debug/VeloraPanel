@@ -44,7 +44,7 @@ class BoundedFrameBuffer:
             self._items.append(frame)
             self._condition.notify()
 
-    def get(self, timeout: float | None = None) -> Frame | None:
+    def get(self, timeout: float | None = 0.0) -> Frame | None:
         deadline = None if timeout is None else monotonic() + max(0.0, timeout)
         with self._condition:
             while not self._items:
