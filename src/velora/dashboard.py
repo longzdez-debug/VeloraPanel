@@ -231,7 +231,7 @@ class Dashboard:
       if parts[3]=="start":outer.s.start_account(a.id)
       elif parts[3]=="schedule":outer.s.schedule_account(a.id)
       elif parts[3]=="stop":outer.s.stop_account(a.id)
-      elif parts[3]=="kill":a.walkbot.emergency_stop()
+      elif parts[3]=="kill":outer.s.stop_account(a.id);outer.logger.warning("account kill requested id=%s",a.id)
       elif parts[3]=="route":
        d=self._body();outer.s.set_route_from_position(a.id,str(d["map"]),str(d["goal"]),a.walkbot.last_position or (0,0,0));outer.s.save_account_profile(a.id)
       else:return self._json({"error":"unknown action"},404)
