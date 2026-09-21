@@ -26,3 +26,23 @@ def test_walkbot_source_keeps_external_only_safety_boundary():
             if token.lower() in text:
                 offenders.append(f"{path.name}: {token}")
     assert not offenders, "\n".join(offenders)
+
+
+def test_decision_engine_does_not_depend_on_input_layer():
+    source = (root := Path(__file__).parents[1] / "src" / "velora" / "decision.py").read_text(encoding="utf-8")
+    assert "ExternalInput" not in source
+    assert "MovementController" not in source
+    assert ".move(" not in source
+    assert ".release_all(" not in source
+
+
+def test_only_movement_controller_crosses_into_external_input():
+    root = Path(__file__).parents[1] / "src" / "velora"
+    offenders = []
+    for path in root.glob("*.py"):
+        if path.name in {"movement_controller.py", "external_input.py"}:
+            continue
+        source = path.read_text(encoding="utf-8")
+        if "ExternalInput" in source and path.name not in {"walkbot.py"}:
+            offenders.append(path.name)
+    assert not offenders, offenders
