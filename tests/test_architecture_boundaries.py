@@ -46,3 +46,10 @@ def test_only_movement_controller_crosses_into_external_input():
         if "ExternalInput" in source and path.name not in {"walkbot.py"}:
             offenders.append(path.name)
     assert not offenders, offenders
+
+
+def test_observation_freshness_boundaries():
+    from velora.world import ObservationValue
+    assert ObservationValue("x", 8.0, "test", 1.0).fresh(now=9.0, max_age=3.0)
+    assert not ObservationValue("x", 10.0, "test", 1.0).fresh(now=9.0, max_age=3.0)
+    assert not ObservationValue(None, 1.0, "test", 1.0).fresh(now=1.0, max_age=3.0)
