@@ -139,3 +139,7 @@ class WorldModel:
         with self._lock:
             self._snapshot = replace(self._snapshot, navigation=replace(self._snapshot.navigation, **changes), updated_at=monotonic())
             return self._snapshot
+
+
+# Observation freshness is evaluated against the caller's clock so replay and
+# deterministic tests can reason about sensor validity without mutating state.
