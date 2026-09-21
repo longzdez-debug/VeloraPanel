@@ -135,6 +135,9 @@ class Dashboard:
   saved=self.settings.load({"language":"en"})
   self.language=saved.get("language","en") if isinstance(saved,dict) else "en"
   if self.language not in {"en","ru"}: self.language="en"
+ def _history(self, machine):
+  return [{"ts":round(x.timestamp,3),"source":getattr(x.source,"value",str(x.source)),"event":str(x.event),"target":getattr(x.target,"value",str(x.target))} for x in getattr(machine,"_history",())[-30:]]
+
  def _event(self,kind,message,account_id=None,batch_id=None,level="info"):
   with self._event_lock:
    self._event_seq+=1
@@ -156,7 +159,7 @@ class Dashboard:
     outer.logger.debug("GET %s",p)
     if p=="/api/status":
      now=time.monotonic()
-     return self._json({"running":outer.s.running,"kill_switch":outer.s.kill_switch,"resources":outer.s.resources.snapshot(),"batches":outer.s.farm.snapshot(),"lobbies":outer.s.lobbies.snapshot(),"scheduler":outer.s.scheduler.snapshot(),"orchestrator":outer.s.orchestrator.snapshot(),"stats":outer.s.stats.snapshot(),"accounts":[{"id":a.id,"name":a.name,"state":a.fsm.state.value,"match":a.match_state().value,"round":a.match.round_number,"rounds_seen":getattr(a,"match_rounds",0),"xp":a.last_xp,"score":a.last_score,"opponent_score":a.last_opponent_score,"result":a.last_match_result,"walkbot":a.walkbot.fsm.state.value,"process_id":a.process_id,"route_map":a.route_map,"route_goal":a.route_goal,"gsi_age":None if a.walkbot.last_gsi is None else max(0,now-a.walkbot.last_gsi),"errors":a.errors[-5:],"restart_count":a.restart_count,"next_restart_at":a.next_restart_at,"started_at":a.started_at} for a in outer.s.accounts]})
+     return self._json({"running":outer.s.running,"kill_switch":outer.s.kill_switch,"resources":outer.s.resources.snapshot(),"batches":outer.s.farm.snapshot(),"lobbies":outer.s.lobbies.snapshot(),"scheduler":outer.s.scheduler.snapshot(),"orchestrator":outer.s.orchestrator.snapshot(),"stats":outer.s.stats.snapshot(),"accounts":[{"id":a.id,"name":a.name,"state":a.fsm.state.value,"match":a.match_state().value,"round":a.match.round_number,"rounds_seen":getattr(a,"match_rounds",0),"xp":a.last_xp,"score":a.last_score,"opponent_score":a.last_opponent_score,"result":a.last_match_result,"walkbot":a.walkbot.fsm.state.value,"process_id":a.process_id,"route_map":a.route_map,"route_goal":a.route_goal,"gsi_age":None if a.walkbot.last_gsi is None else max(0,now-a.walkbot.last_gsi),"errors":a.errors[-5:],"restart_count":a.restart_count,"next_restart_at":a.next_restart_at,"started_at":a.started_at,"fsm_history":outer._history(a.fsm),"match_history":outer._history(a.match),"walkbot_history":outer._history(a.walkbot.fsm)} for a in outer.s.accounts]})
     if p=="/api/events":
      try: limit=max(1,min(200,int(__import__("urllib.parse",fromlist=["parse_qs"]).parse_qs(urlparse(self.path).query).get("limit",["100"])[0]))
      except ValueError: limit=100
