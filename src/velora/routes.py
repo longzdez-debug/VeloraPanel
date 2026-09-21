@@ -2,6 +2,7 @@ from __future__ import annotations
 from dataclasses import asdict,dataclass
 from math import dist,hypot
 import heapq
+from threading import RLock
 
 @dataclass(frozen=True)
 class Node:
@@ -83,9 +84,21 @@ class RouteGraph:
   return graph
 
 class RouteStore:
- def __init__(self,store): self.store=store
- def load(self): return self.store.load({"maps":{}})
- def maps(self): return sorted((self.load().get("maps") or {}).keys())
- def get(self,map_name): return RouteGraph.from_dict(self.load().get("maps",{}).get(map_name,{}))
+ def __init__(self,store):
+  self.store=store
+  self._lock=RLock()
+ def load(self):
+  with self._lock:
+   data=self.store.load({"maps":{}})
+   return data if isinstance(data,dict) else {"maps":{}}
+ def maps(self):
+  with self._lock:
+   return sorted((self.load().get("maps") or {}).keys())
+ def get(self,map_name):
+  with self._lock:
+   return RouteGraph.from_dict(self.load().get("maps",{}).get(map_name,{}))
  def save(self,map_name,graph):
-  data=self.load();data.setdefault("maps",{})[map_name]=graph.to_dict();self.store.save(data)
+  with self._lock:
+   data=self.load()
+   data.setdefault("maps",{})[map_name]=graph.to_dict()
+   self.store.save(data)
