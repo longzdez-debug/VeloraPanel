@@ -19,6 +19,7 @@ class Config:
     input_enabled: bool = False
     input_require_foreground: bool = True
     process_start_timeout: float = 30.0
+    gsi_timeout: float = 8.0
     watchdog_enabled: bool = True
     watchdog_max_restarts: int = 3
     watchdog_backoff: float = 5.0
@@ -39,6 +40,7 @@ class Config:
             _bool("VELORA_INPUT_ENABLED", False),
             _bool("VELORA_INPUT_REQUIRE_FOREGROUND", True),
             max(5.0, float(os.getenv("VELORA_PROCESS_START_TIMEOUT", "30"))),
+            max(2.0, float(os.getenv("VELORA_GSI_TIMEOUT", "8"))),
             _bool("VELORA_WATCHDOG_ENABLED", True),
             max(0, int(os.getenv("VELORA_WATCHDOG_MAX_RESTARTS", "3"))),
             max(0.5, float(os.getenv("VELORA_WATCHDOG_BACKOFF", "5"))),
