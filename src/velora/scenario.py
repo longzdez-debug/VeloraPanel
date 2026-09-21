@@ -24,9 +24,14 @@ SCENARIOS={
 
 class ScenarioEngine:
     def __init__(self): self.state=ScenarioState.IDLE; self.current=None; self.match_count=0
-    def load(self,mode):
+    def load(self, mode, player_count=None):
         if mode not in SCENARIOS: raise ValueError(f"unsupported farm mode: {mode}")
-        self.current=SCENARIOS[mode]; self.state=ScenarioState.IDLE; return self.current
+        if mode == "manual" and player_count is not None:
+            self.current = Scenario("manual", max(1, int(player_count)))
+        else:
+            self.current = SCENARIOS[mode]
+        self.state=ScenarioState.IDLE
+        return self.current
     def start(self):
         if not self.current: raise RuntimeError("scenario not loaded")
         self.state=ScenarioState.RUNNING
