@@ -7,7 +7,10 @@ from velora.supervisor import Supervisor
 
 def test_account_profile_updates_persist(tmp_path):
     store = AccountStore(str(tmp_path / "accounts.json"))
-    store.save([AccountProfile("a", "Alpha", steam_id="1")])
+    store.save([AccountProfile(
+        "a", "Alpha", steam_id="1",
+        route_map="de_dust2", route_start="a", route_goal="b",
+    )])
     sup = Supervisor(Config(data_dir=str(tmp_path)))
     sup.attach_account_store(store)
     account = SimpleNamespace(
