@@ -1,10 +1,12 @@
 from __future__ import annotations
-import json,time
+import json,os,time
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
 from threading import Thread
 from urllib.parse import urlparse,unquote
 from .diagnostics import as_dict,run_checks
 from .routes import Node
+from .storage import JsonStore
+from .log import get_logger
 
 HTML="""<!doctype html><html><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><title>VELORA PANEL</title>
 <style>
@@ -13,7 +15,7 @@ HTML="""<!doctype html><html><head><meta charset=utf-8><meta name=viewport conte
 </style></head><body><div class=app>
 <aside class=side><div class=logo><b>VELORA</b><small>FARM ORCHESTRATION</small></div><div class=nt>CONTROL</div><div class=nav>
 <button class=active data-page=overview>◉ Dashboard</button><button data-page=accounts>Accounts</button><button data-page=batches>Batches</button><button data-page=fsm>Account FSM</button><button data-page=match>Match FSM</button><button data-page=walkbot>WalkBot</button><button data-page=gsi>GSI</button></div><div class=nt>MANAGEMENT</div><div class=nav><button data-page=routes>Route Editor</button><button data-page=diagnostics>Diagnostics</button><button data-page=logs>Logs</button></div><div class=side-status><span class=dot></span><b id=sideState>SYSTEM ONLINE</b><div class=muted>127.0.0.1 · control plane</div></div></aside>
-<div class=content><header class=top><div class=crumb>VELORA / <b id=pageTitle>Dashboard</b></div><div class=actions><span id=topState class="pill run">RUNNING</span><button onclick=diag()>Diagnostics</button><button id=clearKillBtn onclick=clearKill style="display:none">CLEAR KILL SWITCH</button><button class=danger onclick=kill()>EMERGENCY STOP ALL</button></div></header><main class=main>
+<div class=content><header class=top><div class=crumb>VELORA / <b id=pageTitle>Dashboard</b></div><div class=actions><select id=language onchange="setLanguage(this.value)" title="Language"><option value="en">EN</option><option value="ru">RU</option></select><span id=topState class="pill run">RUNNING</span><button onclick=diag()>Diagnostics</button><button id=clearKillBtn onclick=clearKill style="display:none">CLEAR KILL SWITCH</button><button class=danger onclick=kill()>EMERGENCY STOP ALL</button></div></header><main class=main>
 <section id=overview class="page active"><div class=hero><div class=eyebrow>CONTROL PLANE</div><h1>Command Center</h1><div class=muted>Account FSM · Match FSM · WalkBot · GSI · Routes</div></div><div class=cards>
 <div class="card metric"><label>ACCOUNTS</label><strong id=mA>—</strong><span class=muted>registered</span></div><div class="card metric"><label>RUNNING</label><strong id=mR class=ok>—</strong><span class=muted>active accounts</span></div><div class="card metric"><label>BATCHES</label><strong id=mB class=cyan>—</strong><span class=muted>orchestration</span></div><div class="card metric"><label>WALKBOT</label><strong id=mW>—</strong><span class=muted>workers</span></div></div>
 <div class="panel danger-panel"><div class=ph><b>EMERGENCY CONTROL</b><span class=bad>KILL SWITCH</span></div><div class="pb danger-row"><div><b>Emergency Stop All</b><div class=muted>Stop active batches, FSM workers and WalkBot processes.</div></div><button class=danger onclick=kill()>STOP ALL</button></div></div>
@@ -35,6 +37,9 @@ HTML="""<!doctype html><html><head><meta charset=utf-8><meta name=viewport conte
 <script>
 const $=id=>document.getElementById(id);let route={nodes:[],edges:[]};
 async function api(u,m='GET',body){const q={method:m,headers:{'Content-Type':'application/json'}};if(body)q.body=JSON.stringify(body);const r=await fetch(u,q),j=await r.json();if(!r.ok)throw Error(j.error||r.statusText);return j}
+const I18N={ru:{'Dashboard':'Панель','Accounts':'Аккаунты','Batches':'Батчи','Account FSM':'FSM аккаунтов','Match FSM':'FSM матчей','Route Editor':'Редактор маршрутов','Diagnostics':'Диагностика','Logs':'Логи','CONTROL':'УПРАВЛЕНИЕ','MANAGEMENT':'УПРАВЛЕНИЕ','SYSTEM ONLINE':'СИСТЕМА В СЕТИ','SYSTEM STOPPED':'СИСТЕМА ОСТАНОВЛЕНА','KILL SWITCH ACTIVE':'KILL SWITCH АКТИВЕН','RUNNING':'РАБОТАЕТ','STOPPED':'ОСТАНОВЛЕНО','CLEAR KILL SWITCH':'СБРОСИТЬ KILL SWITCH','EMERGENCY STOP ALL':'АВАРИЙНАЯ ОСТАНОВКА','CONTROL PLANE':'ЦЕНТР УПРАВЛЕНИЯ','Command Center':'Командный центр','ACCOUNTS':'АККАУНТЫ','registered':'зарегистрировано','active accounts':'активные аккаунты','BATCHES':'БАТЧИ','orchestration':'оркестрация','WALKBOT':'WALKBOT','workers':'воркеры','EMERGENCY CONTROL':'АВАРИЙНОЕ УПРАВЛЕНИЕ','STOP ALL':'ОСТАНОВИТЬ ВСЕ','ACTIVE ACCOUNTS':'АКТИВНЫЕ АККАУНТЫ','VIEW ALL →':'ПОКАЗАТЬ ВСЕ →','No accounts.':'Нет аккаунтов.','Select accounts and create an orchestration batch.':'Выберите аккаунты и создайте батч.','CREATE BATCH FROM SELECTED':'СОЗДАТЬ БАТЧ ИЗ ВЫБРАННЫХ','START BATCH':'ЗАПУСТИТЬ БАТЧ','STOP BATCH':'ОСТАНОВИТЬ БАТЧ','ORCHESTRATION':'ОРКЕСТРАЦИЯ','No batches.':'Нет батчей.','NAVIGATION':'НАВИГАЦИЯ','REFRESH':'ОБНОВИТЬ','+ NEW MAP':'+ НОВАЯ КАРТА','TOOLS':'ИНСТРУМЕНТЫ','＋ Add waypoint':'＋ ДОБАВИТЬ ТОЧКУ','↔ Connect':'↔ СОЕДИНИТЬ','× Delete node':'× УДАЛИТЬ УЗЕЛ','↓ Save map':'↓ СОХРАНИТЬ КАРТУ','NODE INSPECTOR':'ИНСПЕКТОР УЗЛА','Select a node.':'Выберите узел.','CONNECT NODES':'СОЕДИНИТЬ УЗЛЫ','DELETE NODE':'УДАЛИТЬ УЗЕЛ','SYSTEM':'СИСТЕМА','RUN DIAGNOSTICS':'ЗАПУСТИТЬ ДИАГНОСТИКУ','RAW OUTPUT':'СЫРОЙ ВЫВОД','CLEAR':'ОЧИСТИТЬ','AUTOMATION':'АВТОМАТИЗАЦИЯ','TELEMETRY':'ТЕЛЕМЕТРИЯ','Waiting…':'Ожидание…','No recent account errors.':'Нет последних ошибок аккаунтов.','No data.':'Нет данных.','OFFLINE':'ОФЛАЙН','MATCH':'МАТЧ','PID':'PID','START':'ЗАПУСК','QUEUE':'В ОЧЕРЕДЬ','STOP':'СТОП','KILL BOT':'ОСТАНОВИТЬ БОТА','DELETE':'УДАЛИТЬ','RECOVER':'ВОССТАНОВИТЬ','Manual':'Ручной','2v2 Random':'2v2 случайный','5v5 Shuffle':'5v5 перемешивание','Deathmatch':'Deathmatch','Arms Race':'Arms Race','Armory':'Armory','Language':'Язык'}}};
+function applyLanguage(lang){document.documentElement.lang=lang;document.querySelectorAll('#language option').forEach(o=>o.selected=o.value===lang);if(lang==='en')return;const map=I18N[lang]||{};const walk=n=>n.childNodes.forEach(ch=>{if(ch.nodeType===3){const raw=ch.nodeValue.trim();if(map[raw])ch.nodeValue=ch.nodeValue.replace(raw,map[raw])}else if(ch.nodeType===1&&ch.id!=='language')walk(ch)});walk(document.body)}
+async function setLanguage(lang){if(!['en','ru'].includes(lang))return;try{await api('/api/settings/language','POST',{language:lang});applyLanguage(lang);localStorage.setItem('velora.language',lang)}catch(e){alert(e.message)}}
 function go(p){document.querySelectorAll('.page').forEach(x=>x.classList.toggle('active',x.id===p));document.querySelectorAll('.nav button').forEach(x=>x.classList.toggle('active',x.dataset.page===p));$('pageTitle').textContent=p[0].toUpperCase()+p.slice(1)}
 document.querySelectorAll('.nav button').forEach(x=>x.onclick=()=>go(x.dataset.page));
 async function kill(){try{await api('/api/emergency-stop','POST')}catch(e){alert(e.message)}load()}
@@ -59,7 +64,9 @@ async function diag(){try{const d=await api('/api/diagnostics');$('diagRaw').tex
 function views(d){const a=d.accounts||[],b=d.batches||[];$('mA').textContent=a.length;$('mR').textContent=a.filter(x=>String(x.state).toLowerCase().includes('run')).length;$('mB').textContent=b.length;$('mW').textContent=a.filter(x=>String(x.walkbot).toLowerCase().includes('run')||String(x.walkbot).toLowerCase().includes('active')).length;$('topState').textContent=d.kill_switch?'KILL SWITCH':d.running?'RUNNING':'STOPPED';$('topState').className='pill '+(d.kill_switch?'err':'run');$('sideState').textContent=d.kill_switch?'KILL SWITCH ACTIVE':d.running?'SYSTEM ONLINE':'SYSTEM STOPPED';$('clearKillBtn').style.display=d.kill_switch?'inline-block':'none';$('ovAccounts').innerHTML=a.slice(0,8).map(card).join('')||'<div class=muted>No accounts.</div>';$('accountsList').innerHTML=a.map(card).join('')||'<div class=muted>No accounts.</div>';$('batchList').innerHTML=b.map(x=>'<div class=batch><b class=batch-id>'+x.id+'</b><div class=grow><b>'+x.state+'</b><div class=muted>'+x.mode+' · '+x.size+' accounts · '+x.ready_players+'/'+x.expected_players+' ready</div></div><button onclick="batchAct(\''+x.id+'\',\'recover\')">RECOVER</button><button class=danger onclick="batchAct(\''+x.id+'\',\'stop\')">STOP</button></div>').join('')||'<div class=muted>No batches.</div>';[['fsmBox','state'],['matchBox','match'],['walkBox','walkbot'],['gsiBox','gsi_age']].forEach(([id,k])=>$(id).innerHTML=a.map(x=>'<div class=diag><b>'+x.name+'</b><span class=cyan>'+ (k==='gsi_age'?(x[k]==null?'OFFLINE':x[k].toFixed(1)+'s ago'):x[k])+'</span></div>').join('')||'<div class=muted>No data.</div>');$('logsBox').textContent=a.flatMap(x=>(x.errors||[]).map(e=>x.name+'  '+e)).join('\n')||'No recent account errors.'}
 async function clearKill(){try{await api('/api/kill-switch/clear','POST');load()}catch(e){alert(e.message)}}
 async function load(){try{views(await api('/api/status'))}catch(e){$('topState').textContent='API ERROR';$('topState').className='pill err'}}
-async function init(){try{await refreshMaps();if($('map').options.length)await refreshMap()}catch(e){}load();diag()}init();setInterval(load,1500);setInterval(diag,7000)
+async function loadLanguage(){try{const j=await api('/api/settings/language');const saved=localStorage.getItem('velora.language')||j.language||'en';$('language').value=saved;applyLanguage(saved);if(saved!==j.language)await api('/api/settings/language','POST',{language:saved})}catch(e){console.error(e)}}
+async function loadLogs(){try{const j=await api('/api/logs?lines=500');$('logsBox').textContent=j.content||'No logs.'}catch(e){$('logsBox').textContent='LOG API ERROR: '+e.message}}
+async function init(){try{await refreshMaps();if($('map').options.length)await refreshMap()}catch(e){}await loadLanguage();load();diag();loadLogs()}init();setInterval(load,1500);setInterval(diag,7000);setInterval(loadLogs,3000)
 </script></body></html>"""
 
 
@@ -73,7 +80,13 @@ def _as_bool(value, field):
  raise ValueError(f"{field} must be a boolean")
 
 class Dashboard:
- def __init__(self,supervisor,host="127.0.0.1",port=8765):self.s=supervisor;self.host=host;self.port=port;self.server=None
+ def __init__(self,supervisor,host="127.0.0.1",port=8765):
+  self.s=supervisor;self.host=host;self.port=port;self.server=None
+  self.logger=get_logger("dashboard")
+  self.settings=JsonStore(os.path.join(self.s.config.data_dir,"settings.json"))
+  saved=self.settings.load({"language":"en"})
+  self.language=saved.get("language","en") if isinstance(saved,dict) else "en"
+  if self.language not in {"en","ru"}: self.language="en"
  def start(self):
   outer=self
   class H(BaseHTTPRequestHandler):
@@ -85,6 +98,7 @@ class Dashboard:
     b=json.dumps(obj,ensure_ascii=False).encode();self.send_response(status);self.send_header("Content-Type","application/json");self.send_header("Cache-Control","no-store");self.end_headers();self.wfile.write(b)
    def do_GET(self):
     p=unquote(urlparse(self.path).path)
+    outer.logger.debug("GET %s",p)
     if p=="/api/status":
      now=time.monotonic()
      return self._json({"running":outer.s.running,"kill_switch":outer.s.kill_switch,"resources":outer.s.resources.snapshot(),"batches":outer.s.farm.snapshot(),"lobbies":outer.s.lobbies.snapshot(),"scheduler":outer.s.scheduler.snapshot(),"orchestrator":outer.s.orchestrator.snapshot(),"stats":outer.s.stats.snapshot(),"accounts":[{"id":a.id,"name":a.name,"state":a.fsm.state.value,"match":a.match_state().value,"round":a.match.round_number,"rounds_seen":getattr(a,"match_rounds",0),"xp":a.last_xp,"score":a.last_score,"opponent_score":a.last_opponent_score,"result":a.last_match_result,"walkbot":a.walkbot.fsm.state.value,"process_id":a.process_id,"route_map":a.route_map,"route_goal":a.route_goal,"gsi_age":None if a.walkbot.last_gsi is None else max(0,now-a.walkbot.last_gsi),"errors":a.errors[-5:],"restart_count":a.restart_count,"next_restart_at":a.next_restart_at,"started_at":a.started_at} for a in outer.s.accounts]})
@@ -97,13 +111,30 @@ class Dashboard:
     if p.startswith("/api/routes/"):
      parts=[x for x in p.split("/") if x];return self._json(outer.s.route_store.get(parts[2]).to_dict())
     if p=="/api/diagnostics":
+     outer.logger.info("diagnostics requested")
      return self._json(as_dict(run_checks(outer.s.config.data_dir,outer.s.config.gsi_port,outer.s.config.dashboard_port)))
+    if p=="/api/settings/language":
+     return self._json({"language":outer.language,"supported":["en","ru"]})
+    if p=="/api/logs":
+     from urllib.parse import parse_qs
+     try: lines=max(1,min(5000,int(parse_qs(urlparse(self.path).query).get("lines",["500"])[0])))
+     except ValueError: lines=500
+     path=os.path.join(outer.s.config.data_dir,"velora.log")
+     try:
+      with open(path,encoding="utf-8",errors="replace") as f: content="".join(f.readlines()[-lines:])
+     except FileNotFoundError: content=""
+     return self._json({"path":path,"lines":lines,"content":content}))
     b=HTML.encode();self.send_response(200);self.send_header("Content-Type","text/html; charset=utf-8");self.send_header("Cache-Control","no-store");self.end_headers();self.wfile.write(b)
    def do_POST(self):
     p=unquote(urlparse(self.path).path);parts=[x for x in p.split("/") if x]
     try:
-     if parts==["api","emergency-stop"]:outer.s.emergency_stop();return self._json({"ok":True})
-     if parts==["api","kill-switch","clear"]:outer.s.clear_kill_switch();return self._json({"ok":True})
+     if parts==["api","emergency-stop"]:outer.logger.warning("EMERGENCY STOP requested");outer.s.emergency_stop();return self._json({"ok":True})
+     if parts==["api","kill-switch","clear"]:outer.logger.warning("KILL SWITCH clear requested");outer.s.clear_kill_switch();return self._json({"ok":True})
+     if parts==["api","settings","language"]:
+      d=self._body();lang=str(d.get("language","en")).lower()
+      if lang not in {"en","ru"}: return self._json({"error":"unsupported language"},400)
+      outer.language=lang;outer.settings.save({"language":lang});outer.logger.info("language changed to %s",lang)
+      return self._json({"ok":True,"language":lang})
      if parts==["api","routes","create"]:
       d=self._body();name=str(d.get("map","")).strip()
       if not name:return self._json({"error":"map is required"},400)
@@ -173,8 +204,10 @@ class Dashboard:
       else:return self._json({"error":"unknown route action"},404)
       return self._json(g.to_dict())
      return self._json({"error":"not found"},404)
-    except Exception as e:return self._json({"error":str(e)},400)
-   def log_message(self,*args):pass
+    except Exception as e:
+     outer.logger.exception("HTTP request failed: %s %s",self.command,self.path)
+     return self._json({"error":str(e)},400)
+   def log_message(self,*args):outer.logger.debug("HTTP %s"," ".join(str(x) for x in args))
   self.server=ThreadingHTTPServer((self.host,self.port),H);Thread(target=self.server.serve_forever,daemon=True).start()
  def stop(self):
   if self.server:self.server.shutdown();self.server.server_close();self.server=None
