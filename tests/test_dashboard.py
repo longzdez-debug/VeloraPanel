@@ -93,3 +93,20 @@ def test_dashboard_batch_view_visualizes_member_states_and_errors():
     assert "const members=(x.account_ids||[])" in HTML
     assert "stateClass(a.state)" in HTML
     assert "x.errors||[]" in HTML
+
+
+def test_dashboard_kill_switch_recovery_is_explicit_and_visible():
+    from velora.dashboard import HTML
+
+    assert 'api/kill-switch/clear' in HTML
+    assert 'id=clearKillBtn' in HTML
+    assert 'id=panelClearKillBtn' in HTML
+    assert 'RESUME AUTOMATION' in HTML
+    assert "$('clearKillBtn').style.display=ks?'inline-block':'none'" in HTML
+    assert "$('panelClearKillBtn').style.display=ks?'inline-block':'none'" in HTML
+
+
+def test_dashboard_clear_kill_requires_confirmation():
+    from velora.dashboard import HTML
+
+    assert "function clearKill(){confirmAction('Resume Automation'" in HTML
