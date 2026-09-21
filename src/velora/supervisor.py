@@ -15,6 +15,7 @@ from .farm import FarmManager
 from .resource import ResourceBudget, ResourceManager
 from .lobby import LobbyManager
 from .stats import StatsStore
+from .orchestrator import FarmOrchestrator
 
 @dataclass
 class Supervisor:
@@ -35,6 +36,9 @@ class Supervisor:
         self.scheduler = Scheduler(max_concurrent=getattr(self.config, "max_concurrent_accounts", 1))
         self.lobbies = LobbyManager()
         self.stats = StatsStore()
+        self.runtime_store = JsonStore(f"{self.config.data_dir}/runtime.json")
+        self.orchestrator = FarmOrchestrator(self)
+        self.scheduler.load_snapshot(self.runtime_store.load("scheduler", []))
         self.kill_switch = False
         self.window_guards = {}
 
@@ -95,6 +99,8 @@ class Supervisor:
 
     def _save_farm(self):
         self.farm_store.save(self.farm.snapshot())
+        self.runtime_store.save("scheduler", self.scheduler.snapshot())
+        self.runtime_store.save("orchestrator", self.orchestrator.snapshot())
 
     def create_batch(self, batch_id, account_ids, mode="manual", target_xp=None):
         result=self.farm.create_batch(batch_id, list(account_ids), mode=mode, target_xp=target_xp); self._save_farm(); return result
@@ -255,6 +261,8 @@ class Supervisor:
                         self.scheduler.mark_done(job.id, success=True)
                     except Exception:
                         self.scheduler.mark_done(job.id, success=False)
+                self.orchestrator.tick(now)
+                self._save_farm()
                 for a in self.accounts:
                     if a.process_id and not self.processes.alive(a.process_id):
                         self._process_death(a)
@@ -285,6 +293,7 @@ class Supervisor:
 
     def stop(self):
         self.running = False
+        self._save_farm()
         for a in self.accounts:
             if a.process_id:
                 self.processes.terminate(a.process_id)
