@@ -24,3 +24,6 @@ def test_account_profile_updates_persist(tmp_path):
     assert saved.enabled is False
     assert saved.walkbot is False
     assert saved.launch_args == ["-novid"]
+    assert saved.route_map == "de_dust2"
+    assert saved.route_start == "a"
+    assert saved.route_goal == "b"
