@@ -51,7 +51,7 @@ Route flow:
 
     RouteStore -> RouteGraph -> nearest/path_from_position -> WalkBot.set_path -> Navigator
 
-## Critical problems
+## Critical problems identified by the original audit
 
 1. No central WorldModel. GSI state is copied into Account and WalkBot independently.
 2. GSI DTO is source-shaped; transport, parsing and domain normalization are coupled.
@@ -64,7 +64,7 @@ Route flow:
 9. No screen-capture/vision pipeline or visual localization.
 10. Configuration is flat and thresholds are embedded in WalkBot.
 
-## High problems
+## High problems identified by the original audit
 
 - Route selection is static and has no scored variants.
 - Existing shortest path is not exposed through a configurable planner/cost model.
@@ -73,7 +73,7 @@ Route flow:
 - No bounded perception pipeline.
 - No explicit backpressure model for future CV workloads.
 
-## Medium problems
+## Medium problems identified by the original audit
 
 - Movement commands contain only booleans.
 - No orientation estimate abstraction.
@@ -82,13 +82,13 @@ Route flow:
 - No dedicated decision FSM.
 - Route JSON lacks route metadata, conditions and variants.
 
-## Low problems
+## Low problems identified by the original audit
 
 - Compact one-line formatting makes larger refactors harder to review.
 - Some domain fields are dynamically attached at runtime.
 - Dashboard HTML is embedded in one large constant.
 
-## Missing components
+## Missing components identified by the original audit
 
 WorldModel; timestamp/source/confidence/validity values; GSI parser/normalizer/health separation; screen-capture abstraction; bounded frame pipeline; vision observation/backend abstraction; visual landmark/localization fusion; NavMesh/NavArea; configurable A*; route variants/selection; DecisionEngine; MovementIntent/Steering; StuckDetector; RecoveryEngine; EvidenceMap/Heatmap; BehaviourProfile; replay recorder/player; correlation-aware telemetry; grouped options.
 
