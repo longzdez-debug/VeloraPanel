@@ -42,7 +42,7 @@ class MatchTracker:
         # even when the map name is unchanged. This gives the orchestrator a
         # stable per-account generation without inventing a provider field.
         if self.state == RoundState.LIVE and previous in {
-            RoundState.UNKNOWN, RoundState.OVER, RoundState.GAME_OVER
+            RoundState.UNKNOWN, RoundState.GAME_OVER
         }:
             self.match_id += 1
             self.rounds_seen = 0
