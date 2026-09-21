@@ -71,23 +71,17 @@ class VisionPipeline:
         self.world = world
 
     def process(self, frame: Frame, heavy: bool = True) -> VisionResult | None:
+        self.scheduler.record_capture(frame.metadata.timestamp)
         if heavy:
             if not self.scheduler.should_run_heavy(frame.metadata.timestamp):
                 return None
         elif not self.scheduler.should_run_light(frame.metadata.timestamp):
             return None
         result = self.backend.process(frame)
-        self.scheduler.record_vision()
+        self.scheduler.record_vision(frame.metadata.timestamp)
         if self.world is not None:
             confidence = max((o.confidence for o in result.observations), default=0.0)
             self.world.update_vision(frame_id=result.frame_id, timestamp=result.timestamp, observation_count=len(result.observations), confidence=confidence)
-        self.scheduler.stats = type(self.scheduler.stats)(
-            capture_frames=self.scheduler.stats.capture_frames + 1,
-            vision_frames=self.scheduler.stats.vision_frames + 1,
-            dropped_frames=self.scheduler.stats.dropped_frames,
-            last_capture_at=frame.metadata.timestamp,
-            last_vision_at=frame.metadata.timestamp,
-        )
         if self.output:
             self.output(result)
         return result
