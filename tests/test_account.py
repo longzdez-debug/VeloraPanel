@@ -27,3 +27,25 @@ def test_account_detects_round_end_without_leaving_match():
     a.on_gsi(GsiSnapshot(2, activity="playing", health=100, map_name="de_dust2", round_phase="over", round_number=1))
     assert a.fsm.state == AccountState.IN_MATCH
     assert a.match_state() == MatchState.ROUND_OVER
+
+
+def test_account_enters_menu_on_game_over_gsi():
+    a = make_account()
+    a.start()
+    a.on_gsi(GsiSnapshot(1, activity="playing", health=100, map_name="de_dust2", round_phase="live", round_number=1))
+    a.on_gsi(GsiSnapshot(
+        2,
+        activity="playing",
+        health=0,
+        map_name="de_dust2",
+        map_phase="gameover",
+        round_phase="gameover",
+        round_number=30,
+        player_team="CT",
+        team_score=16,
+        opponent_score=12,
+    ))
+    assert a.fsm.state == AccountState.MENU
+    assert a.last_match_result is True
+    assert a.last_score == 16
+    assert a.last_opponent_score == 12
