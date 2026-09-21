@@ -29,3 +29,20 @@ def test_dashboard_russian_localization_covers_ui_and_dynamic_surfaces():
     assert "No diagnostic data." in HTML
     assert "No accounts." in HTML
     assert "No batches." in HTML
+
+
+def test_dashboard_control_center_has_live_refresh_and_account_selection():
+    from velora.dashboard import HTML
+
+    assert "id=lastUpdate" in HTML
+    assert "function selectedAccounts()" in HTML
+    assert "function selectVisible()" in HTML
+    assert "setInterval(load,2000)" in HTML
+
+
+def test_dashboard_account_kill_targets_process_stop():
+    from velora.dashboard import Dashboard
+    import inspect
+
+    source = inspect.getsource(Dashboard.start)
+    assert 'outer.s.stop_account(a.id)' in source
