@@ -37,3 +37,15 @@ def test_explicit_match_result_updates_win_loss():
     assert stats.xp == 75
     assert stats.wins == 1
     assert stats.losses == 1
+
+
+def test_match_score_and_duration_roundtrip():
+    store = StatsStore()
+    store.record_match("a", xp_delta=100, win=True, score=16, opponent_score=12, duration=123.5)
+    snapshot = store.snapshot()
+    restored = StatsStore()
+    restored.load_snapshot(snapshot)
+    stats = restored.get("a")
+    assert stats.last_score == 16
+    assert stats.last_opponent_score == 12
+    assert stats.last_match_duration == 123.5
