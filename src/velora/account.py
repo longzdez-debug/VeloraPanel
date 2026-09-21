@@ -132,6 +132,11 @@ class Account:
             if self.fsm.state == AccountState.QUEUING:
                 self.fsm.dispatch("match")
         elif self._is_menu(snap) and self.fsm.state == AccountState.IN_MATCH:
+            # Some clients leave the final map phase unstamped and jump straight
+            # to the menu. Treat that transition as terminal so orchestration can
+            # account the match instead of waiting forever for a missing gameover.
+            self.match.update(snap.map_name, "gameover", snap.round_number)
+            self.match_rounds = self.match.rounds_seen
             self.fsm.dispatch("game_over")
             self.match_terminal_latched = True
             self.walkbot.input.release_all()
