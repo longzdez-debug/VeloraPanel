@@ -6,6 +6,8 @@ from typing import Callable
 from .fsm import StateMachine
 from .model import GsiSnapshot,WalkState
 from .movement import Navigator
+from .world import WorldModel
+from .gsi_normalizer import GsiNormalizer
 
 @dataclass(frozen=True)
 class Waypoint:
@@ -36,6 +38,8 @@ class WalkBot:
   self.progress_position=None;self.last_progress=monotonic();self.recoveries=0
   self.recovery_until=0.0;self.recovery_started=0.0
   self.navigator=Navigator();self.enabled=True
+  self.world=WorldModel()
+  self.gsi_normalizer=GsiNormalizer()
   self.last_tick=None
   self.last_command=None
   self.recovery_reason=None
@@ -97,6 +101,8 @@ class WalkBot:
    "last_progress_age":round(progress_age,3) if progress_age is not None else None,
    "last_tick_age":None if self.last_tick is None else round(max(0.0,now-self.last_tick),3),
    "last_command":self.last_command,
+   "position_confidence":self.world.snapshot().localization.position.confidence,
+   "localization_status":self.world.snapshot().localization.status,
   }
 
  def replan_from_position(self,position):
@@ -117,6 +123,7 @@ class WalkBot:
    return False
 
  def on_gsi(self,snap:GsiSnapshot):
+  self.gsi_normalizer.publish(snap,self.world)
   self.last_gsi=monotonic();self.last_position=snap.position or self.last_position
   self.last_forward=snap.forward or self.last_forward
   activity=(snap.activity or "").lower()
