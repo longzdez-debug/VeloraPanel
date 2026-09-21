@@ -102,6 +102,21 @@ class Supervisor:
         if a and hasattr(guard, "bind"):
             guard.bind(a.process_id)
 
+    def remove_account(self, account_id):
+        a = self.get_account(account_id)
+        if a is None:
+            raise KeyError(account_id)
+        if a.process_id or a.fsm.state != AccountState.OFFLINE:
+            self.stop_account(account_id)
+        if any(account_id in b.account_ids and b.state not in (BatchState.IDLE, BatchState.FINISHED, BatchState.ERROR) for b in self.farm.batches.values()):
+            raise RuntimeError("account is used by an active batch")
+        self.scheduler.remove(f"account:{account_id}")
+        self.pool.remove(account_id)
+        self.accounts = [item for item in self.accounts if item.id != account_id]
+        if self.account_store is not None:
+            profiles = [p for p in self.account_store.load() if p.id != account_id]
+            self.account_store.save(profiles)
+
     def get_account(self, account_id):
         return next((x for x in self.accounts if x.id == account_id), None)
 
