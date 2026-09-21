@@ -217,4 +217,4 @@ class WalkBot:
     forward=1.0 if legacy.forward else -1.0 if legacy.back else 0.0,
     strafe=1.0 if legacy.right else -1.0 if legacy.left else 0.0))
   self.last_command={"forward":bool(c.forward),"back":bool(c.back),"left":bool(c.left),"right":bool(c.right)}
-  if self.replay:self.replay.record("WalkBot.MovementCommand",now,self.last_command | {"decision":decision.action,"reason":decision.reason})
+  if self.replay:self.replay.record("WalkBot.MovementCommand",now,self.last_command | {"decision":decision.action,"reason":decision.reason,"confidence":decision.confidence})
