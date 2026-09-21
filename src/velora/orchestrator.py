@@ -75,6 +75,26 @@ class FarmOrchestrator:
         runtime.match_started_at = time()
         return True
 
+    def _target_reached(self, batch):
+        if batch.target_xp is None:
+            return False
+        target = int(batch.target_xp)
+        if target <= 0:
+            return True
+        return all(
+            self.s.pool.farm[a].xp_before is not None
+            and self.s.pool.farm[a].xp_after is not None
+            and self.s.pool.farm[a].xp_after - self.s.pool.farm[a].xp_before >= target
+            for a in batch.account_ids
+        )
+
+    def _update_xp(self, batch):
+        for account_id in batch.account_ids:
+            account = self.s.get_account(account_id)
+            state = self.s.pool.farm[account_id]
+            if account and account.last_xp is not None:
+                state.xp_after = account.last_xp
+
     def _all_game_over(self, batch, runtime):
         for account_id in batch.account_ids:
             account = self.s.get_account(account_id)
@@ -190,7 +210,8 @@ class FarmOrchestrator:
             if batch.state == BatchState.FARMING and self._all_game_over(batch, runtime):
                 batch.scenario.complete_match()
                 runtime.last_match_counted += 1
-                duration = max(0.0, time() - batch.started_at) if batch.started_at else 0.0
+                self._update_xp(batch)
+                duration = max(0.0, time() - (runtime.match_started_at or batch.started_at or time()))
                 finished_at = time()
                 for account_id in batch.account_ids:
                     self.s.stats.record_match(account_id, match_count=1)
@@ -198,7 +219,8 @@ class FarmOrchestrator:
                     state.matches_played += 1
                     state.farm_seconds += duration
                     state.last_farm_at = finished_at
-                if batch.max_matches is not None and runtime.last_match_counted >= batch.max_matches:
+                target_reached = self._target_reached(batch)
+                if target_reached or (batch.max_matches is not None and runtime.last_match_counted >= batch.max_matches):
                     batch.director.finish()
                     self.s.farm.finish_batch(batch.id, True)
                 elif batch.repeat:
@@ -217,6 +239,7 @@ class FarmOrchestrator:
                     self.s.farm.finish_batch(batch.id, True)
                 changed = True
 
+            self._update_xp(batch)
             stale = [account.id for account in accounts if account.gsi_stale(getattr(self.s.config, "gsi_timeout", 8.0), now)]
             if stale and batch.state == BatchState.FARMING:
                 self._fail(batch, "GSI heartbeat lost: " + ", ".join(stale), now)
