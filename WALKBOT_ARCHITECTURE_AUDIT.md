@@ -112,14 +112,14 @@ The audited WalkBot path contains no ReadProcessMemory, WriteProcessMemory, Open
 - Phase 4 Screen capture: COMPLETE (Windows GDI backend + bounded frame buffer)
 - Phase 5 Vision: COMPLETE as foundation (CPU metrics backend; domain detectors still require map/template/model assets)
 - Phase 6 Localization: FOUNDATION COMPLETE (confidence-weighted source fusion; runtime landmark source pending)
-- Phase 7 NavMesh: pending
-- Phase 8 A*: pending migration
-- Phase 9 Route database: pending
-- Phase 10 Decision engine: pending
-- Phase 11 Movement/steering: pending
-- Phase 12 Stuck/recovery: pending decomposition
-- Phase 13 Evidence/heatmaps: pending
-- Phase 14 Behaviour profiles: pending
-- Phase 15 Replay/telemetry/debug: pending
-- Phase 16 Performance: pending
-- Phase 17 Full integration: pending
+- Phase 7 NavMesh: FOUNDATION COMPLETE
+- Phase 8 A*: FOUNDATION COMPLETE
+- Phase 9 Route database: FOUNDATION COMPLETE
+- Phase 10 Decision engine: FOUNDATION COMPLETE
+- Phase 11 Movement/steering: FOUNDATION COMPLETE
+- Phase 12 Stuck/recovery: FOUNDATION COMPLETE
+- Phase 13 Evidence/heatmaps: FOUNDATION COMPLETE
+- Phase 14 Behaviour profiles: FOUNDATION COMPLETE
+- Phase 15 Replay/telemetry/debug: INTEGRATED FOUNDATION
+- Phase 16 Performance: INTEGRATED FOUNDATION
+- Phase 17 Full integration: COMPLETE at repository architecture level; Windows/CS2 runtime validation remains environment-dependent
