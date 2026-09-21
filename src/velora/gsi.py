@@ -1,48 +1,93 @@
 from __future__ import annotations
-import hashlib,hmac,json,time
-from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
+import hashlib, hmac, json, time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from threading import Thread
 from .model import GsiSnapshot
+
 def _vec(value):
- if not isinstance(value,str): return None
- try:
-  x=[float(v) for v in value.replace(","," ").split()]
-  return tuple(x[:3]) if len(x)>=3 else None
- except ValueError:return None
+    if not isinstance(value, str):
+        return None
+    try:
+        x = [float(v) for v in value.replace(",", " ").split()]
+        return tuple(x[:3]) if len(x) >= 3 else None
+    except ValueError:
+        return None
+
 class GsiServer:
- def __init__(self,host="127.0.0.1",port=27100,token=""):
-  self.host,self.port,self.token=host,port,token;self._last_key=None;self.last_received=None;self._server=None;self._on_snapshot=None
- def on_snapshot(self,callback):self._on_snapshot=callback
- def start(self):
-  outer=self
-  class Handler(BaseHTTPRequestHandler):
-   def do_POST(self):
-    if self.command != "POST":
-     self.send_response(405);self.end_headers();return
-    try:n=int(self.headers.get("Content-Length","0"));body=self.rfile.read(n)
-    except ValueError:self.send_response(400);self.end_headers();return
-    try:data=json.loads(body)
-    except json.JSONDecodeError:self.send_response(400);self.end_headers();return
-    auth=data.get("auth") or {}
-    supplied=auth.get("token","") if isinstance(auth,dict) else ""
-    if outer.token and not hmac.compare_digest(str(supplied),outer.token):
-     self.send_response(401);self.end_headers();return
-    provider=data.get("provider") or {};m=data.get("map") or {};r=data.get("round") or {};p=data.get("player") or {};st=p.get("state") or {}
-    position=_vec(p.get("position") or st.get("position"))
-    forward=_vec(p.get("forward") or p.get("forward_direction"))
-    ts=provider.get("timestamp")
-    key=(ts,hashlib.sha256(body).hexdigest())
-    if key==outer._last_key:self.send_response(204);self.end_headers();return
-    outer._last_key=key;outer.last_received=time.monotonic()
-    rn=m.get("round")
-    try:rn=int(rn) if rn is not None else None
-    except (TypeError,ValueError):rn=None
-    snap=GsiSnapshot(time.monotonic(),ts,m.get("name"),m.get("phase"),r.get("phase"),p.get("activity"),st.get("health"),p.get("steamid"),position,forward,rn,data)
-    if outer._on_snapshot:
-     try: outer._on_snapshot(snap)
-     except Exception: pass
-    self.send_response(204);self.end_headers()
-   def log_message(self,*args):pass
-  self._server=ThreadingHTTPServer((self.host,self.port),Handler);Thread(target=self._server.serve_forever,daemon=True).start()
- def stop(self):
-  if self._server:self._server.shutdown();self._server.server_close();self._server=None
+    def __init__(self, host="127.0.0.1", port=27100, token=""):
+        self.host, self.port, self.token = host, port, token
+        self._last_key = None
+        self.last_received = None
+        self._server = None
+        self._on_snapshot = None
+
+    def on_snapshot(self, callback):
+        self._on_snapshot = callback
+
+    def start(self):
+        outer = self
+        class Handler(BaseHTTPRequestHandler):
+            def do_POST(self):
+                try:
+                    n = int(self.headers.get("Content-Length", "0"))
+                    if n <= 0 or n > 2_000_000:
+                        self.send_response(400); self.end_headers(); return
+                    body = self.rfile.read(n)
+                except (ValueError, OSError):
+                    self.send_response(400); self.end_headers(); return
+                try:
+                    data = json.loads(body)
+                except (json.JSONDecodeError, UnicodeDecodeError):
+                    self.send_response(400); self.end_headers(); return
+                if not isinstance(data, dict):
+                    self.send_response(400); self.end_headers(); return
+
+                auth = data.get("auth") or {}
+                supplied = auth.get("token", "") if isinstance(auth, dict) else ""
+                if outer.token and not hmac.compare_digest(str(supplied), outer.token):
+                    self.send_response(401); self.end_headers(); return
+
+                provider = data.get("provider") or {}
+                map_data = data.get("map") or {}
+                round_data = data.get("round") or {}
+                player = data.get("player") or {}
+                state = player.get("state") or {}
+                if not all(isinstance(x, dict) for x in (provider, map_data, round_data, player, state)):
+                    self.send_response(400); self.end_headers(); return
+
+                position = _vec(player.get("position") or state.get("position"))
+                forward = _vec(player.get("forward") or player.get("forward_direction"))
+                ts = provider.get("timestamp")
+                key = (ts, hashlib.sha256(body).hexdigest())
+                if key == outer._last_key:
+                    self.send_response(204); self.end_headers(); return
+                outer._last_key = key
+                outer.last_received = time.monotonic()
+                rn = map_data.get("round")
+                try:
+                    rn = int(rn) if rn is not None else None
+                except (TypeError, ValueError):
+                    rn = None
+                steam_id = player.get("steamid") or player.get("steam_id")
+                snap = GsiSnapshot(
+                    time.monotonic(), ts, map_data.get("name"), map_data.get("phase"),
+                    round_data.get("phase"), player.get("activity"), state.get("health"),
+                    steam_id, position, forward, rn, data
+                )
+                if outer._on_snapshot:
+                    try:
+                        outer._on_snapshot(snap)
+                    except Exception:
+                        pass
+                self.send_response(204); self.end_headers()
+
+            def log_message(self, *args):
+                pass
+        self._server = ThreadingHTTPServer((self.host, self.port), Handler)
+        Thread(target=self._server.serve_forever, daemon=True).start()
+
+    def stop(self):
+        if self._server:
+            self._server.shutdown()
+            self._server.server_close()
+            self._server = None
