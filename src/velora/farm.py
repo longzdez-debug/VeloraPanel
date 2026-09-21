@@ -85,8 +85,10 @@ class FarmManager:
         required = {
             "2v2": 4, "2v2_random": 4,
             "5v5": 10, "5v5_shuffle": 10,
-            "deathmatch": 1, "arms_race": 1, "armory": 1, "manual": 1,
+            "deathmatch": 1, "arms_race": 1, "armory": 1,
         }.get(mode)
+        if mode == "manual":
+            return
         if required is None:
             raise ValueError(f"unsupported farm mode: {mode}")
         if size != required:
@@ -103,7 +105,7 @@ class FarmManager:
             self.resources.stop_batch(batch.id)
             raise RuntimeError("batch contains disabled or unavailable account")
         try:
-            batch.scenario.load(batch.mode)
+            batch.scenario.load(batch.mode, batch.size)
             if batch.scenario.current.required_players != batch.size:
                 raise ValueError(f"{batch.mode} requires {batch.scenario.current.required_players} accounts")
             batch.director.prepare(batch.size)
