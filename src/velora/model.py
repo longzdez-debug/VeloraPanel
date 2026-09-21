@@ -14,6 +14,9 @@ class GsiSnapshot:
  received_at:float; provider_timestamp:int|None=None; map_name:str|None=None; map_phase:str|None=None; round_phase:str|None=None; activity:str|None=None; health:int|None=None; steam_id:str|None=None
  position:tuple[float,float,float]|None=None; forward:tuple[float,float,float]|None=None; round_number:int|None=None
  raw:dict[str,Any]=field(default_factory=dict)
+
+ @property
+ def match_key(self): return (self.map_name,self.round_number,self.steam_id)
 @dataclass
 class RuntimeStatus:
  account:AccountState=AccountState.OFFLINE; match:MatchState=MatchState.UNKNOWN; walkbot:WalkState=WalkState.DISABLED; last_gsi:float|None=None; errors:int=0
