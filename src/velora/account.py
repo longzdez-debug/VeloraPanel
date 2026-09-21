@@ -93,6 +93,10 @@ class Account:
         previous = self.match.state
         self.match.update(snap.map_name, snap.round_phase or snap.map_phase, snap.round_number)
 
+        if self.match.state == RoundState.GAME_OVER and self.fsm.state == AccountState.IN_MATCH:
+            self.fsm.dispatch("game_over")
+            self.walkbot.input.release_all()
+
         if self._is_queue(snap) and self.fsm.state == AccountState.MENU:
             self.fsm.dispatch("queue")
         elif self._is_live(snap):
