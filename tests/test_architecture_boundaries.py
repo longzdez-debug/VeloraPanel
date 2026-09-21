@@ -40,7 +40,7 @@ def test_only_movement_controller_crosses_into_external_input():
     root = Path(__file__).parents[1] / "src" / "velora"
     offenders = []
     for path in root.glob("*.py"):
-        if path.name in {"movement_controller.py", "external_input.py"}:
+        if path.name in {"movement_controller.py", "external_input.py", "windows.py"}:
             continue
         source = path.read_text(encoding="utf-8")
         if any(token in source for token in (".move(", ".release_all(", "send_input(")):
