@@ -22,6 +22,7 @@ class Account:
     restart_count: int = 0
     next_restart_at: float = 0.0
     started_at: float | None = None
+    last_xp: int | None = None
 
     def __post_init__(self):
         self.fsm = StateMachine(AccountState.OFFLINE)
@@ -82,6 +83,8 @@ class Account:
         if self.steam_id and snap.steam_id and snap.steam_id != self.steam_id:
             return
         self.last_gsi = snap.received_at
+        if snap.xp is not None:
+            self.last_xp = snap.xp
         self.on_ready()
         previous = self.match.state
         self.match.update(snap.map_name, snap.round_phase or snap.map_phase, snap.round_number)
