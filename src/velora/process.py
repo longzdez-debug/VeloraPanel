@@ -1,11 +1,17 @@
+from __future__ import annotations
+import os,subprocess,time
 from dataclasses import dataclass
-from pathlib import Path
-import subprocess,time
 @dataclass(frozen=True)
-class ProcessIdentity:pid:int;created:float;executable:str
+class ProcessIdentity: pid:int;created:float;executable:str
 class ProcessSupervisor:
- def __init__(self):self._owned={}
- def launch(self,key,executable,args=None,cwd=None):
-  p=subprocess.Popen([executable,* (args or [])],cwd=cwd);i=ProcessIdentity(p.pid,time.time(),str(Path(executable).resolve()));self._owned[key]=i;return i
- def owned(self,key):return self._owned.get(key)
- def forget(self,key):self._owned.pop(key,None)
+ def __init__(self):self.owned={}
+ def launch(self,executable,*args):
+  p=subprocess.Popen([executable,*args],close_fds=True)
+  ident=ProcessIdentity(p.pid,time.time(),os.path.abspath(executable));self.owned[p.pid]=ident;return ident
+ def is_owned(self,pid):
+  x=self.owned.get(pid)
+  if not x:return False
+  try:return os.path.abspath(self._exe(pid))==x.executable
+  except OSError:return False
+ def _exe(self,pid):return __import__("psutil").Process(pid).exe()
+ def forget(self,pid):self.owned.pop(pid,None)
