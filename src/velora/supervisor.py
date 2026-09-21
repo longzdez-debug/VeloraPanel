@@ -221,6 +221,36 @@ class Supervisor:
     def batch_match_found(self, batch_id, match_id=None):
         result=self.farm.match_found(batch_id, match_id); self._save_farm(); return result
 
+    def recover_batch(self, batch_id):
+        batch = self.farm.recover_farming_batch(batch_id)
+        started = []
+        try:
+            for account_id in batch.account_ids:
+                self.start_account(account_id)
+                started.append(account_id)
+        except Exception as exc:
+            batch.errors.append(f"recovery failed: {exc}")
+            for account_id in started:
+                try:
+                    self.stop_account(account_id)
+                except Exception:
+                    pass
+            self.farm.resources.stop_batch(batch.id)
+            self._save_farm()
+            raise
+        self._save_farm()
+        return batch
+
+    def delete_batch(self, batch_id):
+        batch = self.farm.batches.get(batch_id)
+        if batch is None:
+            raise KeyError(batch_id)
+        if batch.state not in (BatchState.IDLE, BatchState.FINISHED, BatchState.ERROR):
+            raise RuntimeError("cannot delete an active batch")
+        self.farm.batches.pop(batch_id)
+        self.orchestrator.runtime.pop(batch_id, None)
+        self._save_farm()
+
     def set_route(self, account_id, map_name, start, goal):
         a = self.get_account(account_id)
         if not a:
