@@ -6,7 +6,7 @@
 | 2 WorldModel/Core | COMPLETE | world.py, movement_intent.py, options.py |
 | 3 GSI normalization | COMPLETE | gsi_normalizer.py, WalkBot integration |
 | 4 Screen capture | COMPLETE | screen.py: bounded buffer + Windows GDI capture |
-| 5 Vision | FOUNDATION COMPLETE | vision.py: real CPU frame metrics + backend boundary |
+| 5 Vision | INTEGRATED FOUNDATION | vision.py: real CPU frame metrics + backend boundary |
 | 6 Localization | FOUNDATION COMPLETE | localization.py + WorldModel provenance |
 | 7 NavMesh | FOUNDATION COMPLETE | navigation.py NavArea/NavEdge/NavGraph |
 | 8 A* | FOUNDATION COMPLETE | NavGraph.astar with configurable edge cost |
@@ -16,9 +16,9 @@
 | 12 Stuck/Recovery | FOUNDATION COMPLETE | stuck.py + recovery.py |
 | 13 Evidence/Heatmaps | FOUNDATION COMPLETE | evidence.py with exponential decay |
 | 14 Behaviour | FOUNDATION COMPLETE | deterministic bounded BehaviourSampler |
-| 15 Replay/Telemetry | FOUNDATION COMPLETE | replay.py + telemetry.py + WalkBot replay hooks |
-| 16 Performance | PARTIAL | bounded frame/replay buffers; CV throttling metrics/config still to integrate |
-| 17 Full integration | PENDING | requires full pipeline wiring, Windows runtime checks and test/CI verification |
+| 15 Replay/Telemetry | INTEGRATED FOUNDATION | replay.py + replay_runner.py + telemetry.py + WalkBot replay hooks |
+| 16 Performance | INTEGRATED FOUNDATION | bounded frame pipeline + scheduler drop/capture/vision metrics |
+| 17 Full integration | IN PROGRESS | GSI health, WorldModel, navigation/recovery, replay and movement boundaries integrated; Windows runtime/CI verification remains |
 
 ## What is deliberately not claimed as complete
 
@@ -26,7 +26,7 @@
 - GPU backends are not claimed without an actual optional backend implementation.
 - Full Decision -> Navigation -> Steering -> Input runtime wiring is not claimed until the legacy WalkBot path is migrated and regression-tested.
 - CS2 runtime validation is not claimed from repository inspection alone.
-- Tests were added but could not be executed in this environment because outbound network access prevented cloning/installing the repository; GitHub Actions status for the latest direct-push commits was not exposed by the connector.
+- Tests are maintained in-repo and CI is triggered on pushes; runtime/build verification remains Windows-environment dependent.
 
 ## External-only guarantee
 
