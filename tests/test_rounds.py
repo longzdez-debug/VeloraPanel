@@ -1,3 +1,4 @@
 from velora.rounds import MatchTracker,RoundState
-def test_overtime_rounds_are_not_hardcoded():
- t=MatchTracker();assert t.update("de_dust2","live",37)==RoundState.LIVE;assert t.round_number==37
+def test_overtime_round_numbers_are_not_bounded():
+ m=MatchTracker();m.update("de_dust2","live",24);m.update("de_dust2","live",37)
+ assert m.round_number==37 and m.state==RoundState.LIVE
