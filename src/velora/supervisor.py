@@ -43,7 +43,7 @@ class Supervisor:
         self.stats = StatsStore()
         self.stats_store = JsonStore(f"{self.config.data_dir}/stats.json")
         self.stats.load_snapshot(self.stats_store.load([]))
-        self.runtime_store = JsonStore(f"{self.config.data_dir}/runtime.json")
+        self.runtime_store = JsonStore(f"{self.config.data_dir}/runtime")
         self.orchestrator = FarmOrchestrator(self)
         self.scheduler.load_snapshot(self.runtime_store.load("scheduler", []))
         self.orchestrator.load_snapshot(self.runtime_store.load("orchestrator", []))
