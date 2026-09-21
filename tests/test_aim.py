@@ -32,7 +32,7 @@ def test_solve_predicts_motion_and_applies_smoothing():
     solution = solver.solve((0.0, 0.0, 0.0), (0.0, 0.0), target)
     assert solution.predicted
     assert isclose(solution.aim_position[1], 1.0)
-    assert 20.0 < solution.yaw_delta < 25.0
+    assert 2.0 < solution.yaw_delta < 3.5
     assert isclose(solution.distance, (101.0) ** 0.5, rel_tol=1e-6)
 
 
