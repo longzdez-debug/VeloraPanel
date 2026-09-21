@@ -79,7 +79,7 @@ function localizeDynamic(s){
  if(exact)return exact;
  const states={offline:'НЕ В СЕТИ',starting:'ЗАПУСК',menu:'МЕНЮ',queuing:'ПОИСК МАТЧА',in_match:'В МАТЧЕ',stopping:'ОСТАНОВКА',error:'ОШИБКА',unknown:'НЕИЗВЕСТНО',waiting:'ОЖИДАНИЕ',live:'В ИГРЕ',round_over:'РАУНД ЗАВЕРШЁН',game_over:'МАТЧ ЗАВЕРШЁН',disabled:'ОТКЛЮЧЁН',initializing:'ИНИЦИАЛИЗАЦИЯ',waiting_for_game:'ОЖИДАНИЕ ИГРЫ',waiting_for_spawn:'ОЖИДАНИЕ ПОЯВЛЕНИЯ',navigating:'НАВИГАЦИЯ',arriving:'ПРИБЫТИЕ',stuck:'ЗАСТРЯЛ',recovering:'ВОССТАНОВЛЕНИЕ',replanning:'ПЕРЕПЛАНИРОВАНИЕ',fault:'СБОЙ',running:'РАБОТАЕТ',active:'АКТИВЕН',stopped:'ОСТАНОВЛЕН',ready:'ГОТОВ',scheduled:'ЗАПЛАНИРОВАН'};
  if(Object.prototype.hasOwnProperty.call(states,v))return states[v];
- v=v.replace(/^([0-9]+) accounts$/,'$1 аккаунтов').replace(/^([0-9]+) account\(s\)$/,'$1 аккаунтов').replace(/^([0-9]+) \/ ([0-9]+) ready$/,'$1 / $2 готово');
+ v=v.replace(/^([0-9]+) accounts$/,'$1 аккаунтов').replace(/^([0-9]+) account\\(s\\)$/,'$1 аккаунтов').replace(/^([0-9]+) \/ ([0-9]+) ready$/,'$1 / $2 готово');
  v=v.replace(/^([0-9]+) nodes · ([0-9]+) edges$/,'$1 узлов · $2 связей');
  v=v.replace(/^● VALID · ([0-9]+) nodes · ([0-9]+) edges$/,'● ДЕЙСТВИТЕЛЬНО · $1 узлов · $2 связей');
  v=v.replace(/^● INVALID · ([0-9]+) issues$/,'● ОШИБОК: $1');
