@@ -155,6 +155,7 @@ class Supervisor:
                     self.stop_account(account_id)
                 except Exception:
                     pass
+            self._save_farm()
             raise
         self.farm.mark_ready(batch_id)
         self._save_farm()
