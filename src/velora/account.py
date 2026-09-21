@@ -21,6 +21,7 @@ class Account:
     route_goal: str | None = None
     restart_count: int = 0
     next_restart_at: float = 0.0
+    started_at: float | None = None
 
     def __post_init__(self):
         self.fsm = StateMachine(AccountState.OFFLINE)
