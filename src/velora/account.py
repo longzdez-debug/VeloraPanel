@@ -95,11 +95,21 @@ class Account:
                 self.fsm.dispatch("match")
         elif self._is_menu(snap) and self.fsm.state == AccountState.IN_MATCH:
             self.fsm.dispatch("game_over")
+            self.walkbot.input.release_all()
         elif previous == RoundState.LIVE and self.match.state == RoundState.OVER:
             if self.fsm.state == AccountState.IN_MATCH:
                 self.fsm.dispatch("round_end")
 
         self.walkbot.on_gsi(snap)
+
+    def gsi_age(self, now=None) -> float | None:
+        if self.last_gsi is None: return None
+        from time import monotonic
+        return max(0.0, (monotonic() if now is None else now) - self.last_gsi)
+
+    def gsi_stale(self, timeout: float, now=None) -> bool:
+        age = self.gsi_age(now)
+        return age is None or age > timeout
 
     def match_state(self) -> MatchState:
         return {
