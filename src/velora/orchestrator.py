@@ -302,7 +302,7 @@ class FarmOrchestrator:
                 changed = True
 
             self._update_xp(batch)
-            stale = [account.id for account in accounts if account.gsi_stale(getattr(self.s.config, "gsi_timeout", 8.0), now)]
+            stale = [account.id for account in accounts if account.gsi_stale(getattr(self.s.config, "gsi_timeout", 8.0))]
             if stale and batch.state == BatchState.FARMING:
                 self._fail(batch, "GSI heartbeat lost: " + ", ".join(stale), now)
                 changed = True
