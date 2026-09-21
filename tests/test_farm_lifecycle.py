@@ -258,15 +258,15 @@ def test_new_match_does_not_reuse_previous_result_or_score():
 def test_gsi_freshness_uses_wall_clock():
     from velora.account import Account
     from velora.walkbot import WalkBot
-    from time import time
+    from time import monotonic
 
     class Input:
         def release_all(self): pass
         def move(self, forward, back, left, right): pass
 
     account = Account("a", "A", WalkBot(Input()))
-    account.last_gsi = time() - 10
-    assert account.gsi_age(now=time()) >= 9.9
-    assert account.gsi_stale(5, now=time()) is True
-    account.last_gsi = time()
-    assert account.gsi_stale(5, now=time()) is False
+    account.last_gsi = monotonic() - 10
+    assert account.gsi_age(now=monotonic()) >= 9.9
+    assert account.gsi_stale(5, now=monotonic()) is True
+    account.last_gsi = monotonic()
+    assert account.gsi_stale(5, now=monotonic()) is False
