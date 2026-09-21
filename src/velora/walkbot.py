@@ -174,7 +174,8 @@ class WalkBot:
   position=position or self.last_position
   if position is None:return
   self.last_position=position;target=self.path[self.index]
-  self.world.update_navigation(current_area=target.id, progress=(self.index/max(1,len(self.path)-1)) if self.path else 0.0)
+  current_area = self.nav_graph.nearest(position, self.cfg.arrive_radius * 2).id if self.nav_graph is not None and self.nav_graph.nearest(position, self.cfg.arrive_radius * 2) is not None else self.world.snapshot().localization.nav_area
+  self.world.update_navigation(current_area=current_area, progress=(self.index/max(1,len(self.path)-1)) if self.path else 0.0)
   d=hypot(target.x-position[0],target.y-position[1])
   if d<=self.cfg.arrive_radius:
    self.input.release_all()
