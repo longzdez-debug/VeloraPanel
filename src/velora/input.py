@@ -1,7 +1,11 @@
 from __future__ import annotations
-from .walkbot import InputAdapter
 
-class NullInput(InputAdapter):
+from .external_input import ExternalInput
+
+
+class NullInput(ExternalInput):
+    """Safe no-op input adapter used by tests and headless runs."""
+
     def __init__(self):
         self.last = (False, False, False, False)
 
