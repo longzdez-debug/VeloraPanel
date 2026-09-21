@@ -166,8 +166,20 @@ class FarmOrchestrator:
                     state.matches_played += 1
                     state.farm_seconds += duration
                     state.last_farm_at = finished_at
-                batch.director.finish()
-                self.s.farm.finish_batch(batch.id, True)
+                if batch.max_matches is not None and runtime.last_match_counted >= batch.max_matches:
+                    batch.director.finish()
+                    self.s.farm.finish_batch(batch.id, True)
+                elif batch.repeat:
+                    batch.director.reset()
+                    batch.scenario.reset()
+                    runtime.ready.clear()
+                    runtime.game_over_seen.clear()
+                    runtime.ready_since = now
+                    runtime.search_since = None
+                    batch.state = BatchState.WAITING_FOR_READY
+                else:
+                    batch.director.finish()
+                    self.s.farm.finish_batch(batch.id, True)
                 changed = True
 
             stale = [account.id for account in accounts if account.gsi_stale(getattr(self.s.config, "gsi_timeout", 8.0), now)]
