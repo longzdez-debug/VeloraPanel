@@ -1,7 +1,9 @@
 from __future__ import annotations
+
 import asyncio
-from time import monotonic
 from dataclasses import dataclass, field
+from time import monotonic
+
 from .config import Config
 from .gsi import GsiServer
 from .process import ProcessSupervisor
@@ -10,6 +12,7 @@ from .model import AccountState
 from .routes import RouteStore
 from .storage import JsonStore
 from .scheduler import Job, Scheduler
+
 
 @dataclass
 class Supervisor:
@@ -20,12 +23,11 @@ class Supervisor:
     def __post_init__(self):
         self.gsi = GsiServer(self.config.gsi_host, self.config.gsi_port, self.config.gsi_token)
         self.processes = ProcessSupervisor()
-        self.launcher = Cs2Launcher(self.processes)
+        self.launcher = Cs2Launcher(self.processes, self.config.process_start_timeout)
         self.route_store = RouteStore(JsonStore(f"{self.config.data_dir}/routes.json"))
         self.scheduler = Scheduler(max_concurrent=1)
         self.kill_switch = False
         self.window_guards = {}
-        self._watchdog_due = {}
 
     def add_account(self, a):
         if not any(x.id == a.id for x in self.accounts):
@@ -112,7 +114,11 @@ class Supervisor:
             return a.process_id
         a.start()
         try:
-            r = self.launcher.start(a.executable, a.launch_args)
+            r = self.launcher.start(
+                a.executable,
+                a.launch_args,
+                via_steam=self.config.launch_via_steam,
+            )
             a.process_id = r.identity.pid
             a.executable = r.executable
             a.started_at = monotonic()
@@ -141,6 +147,12 @@ class Supervisor:
 
     def _process_death(self, a):
         pid = a.process_id
+        if pid:
+            try:
+                if self.processes.alive(pid):
+                    self.processes.terminate(pid)
+            except OSError:
+                pass
         a.process_id = None
         a.started_at = None
         a.walkbot.emergency_stop()
@@ -179,11 +191,21 @@ class Supervisor:
                 for a in self.accounts:
                     if a.process_id and not self.processes.alive(a.process_id):
                         self._process_death(a)
-                    if (a.process_id and a.started_at and a.last_gsi is None and now - a.started_at > self.config.process_start_timeout):
+                    if (
+                        a.process_id
+                        and a.started_at
+                        and a.last_gsi is None
+                        and now - a.started_at > self.config.process_start_timeout
+                    ):
                         a.errors.append(f"startup readiness timeout ({self.config.process_start_timeout:.0f}s)")
                         self._process_death(a)
-                    if (a.process_id is None and a.next_restart_at and now >= a.next_restart_at
-                            and a.restart_count <= self.config.watchdog_max_restarts and not self.kill_switch):
+                    if (
+                        a.process_id is None
+                        and a.next_restart_at
+                        and now >= a.next_restart_at
+                        and a.restart_count <= self.config.watchdog_max_restarts
+                        and not self.kill_switch
+                    ):
                         a.next_restart_at = 0.0
                         try:
                             self.start_account(a.id)
