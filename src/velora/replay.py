@@ -31,21 +31,22 @@ class ReplaySession:
             json.dump(self.to_dict(), handle, ensure_ascii=False, indent=2)
 
     @classmethod
-    def from_dict(cls, data: dict):
-        session = cls(str(data.get("session_id") or "replay"), max_events=max(1, len(data.get("events", []))))
-        session.events = [ReplayEvent(float(x["timestamp"]), str(x["kind"]), dict(x.get("payload", {})), str(x.get("correlation_id", ""))) for x in data.get("events", [])]
+    def from_dict(cls, data: dict, max_events: int | None = None):
+        events = data.get("events", [])
+        session = cls(str(data.get("session_id") or "replay"), max_events=max_events or max(1, len(events)))
+        session.events = [
+            ReplayEvent(float(x["timestamp"]), str(x["kind"]), dict(x.get("payload", {})), str(x.get("correlation_id", "")))
+            for x in events
+        ]
+        if len(session.events) > session.max_events:
+            session.events = session.events[-session.max_events:]
         return session
 
     @classmethod
-    def load(cls, path: str):
+    def load(cls, path: str, max_events: int | None = None):
         with open(path, encoding="utf-8") as handle:
             data = json.load(handle)
-        session = cls(str(data["session_id"]))
-        session.events = [
-            ReplayEvent(float(x["timestamp"]), str(x["kind"]), dict(x.get("payload", {})), str(x.get("correlation_id", "")))
-            for x in data.get("events", [])
-        ]
-        return session
+        return cls.from_dict(data, max_events=max_events)
 
     def iter_events(self):
         return iter(self.events)
