@@ -9,6 +9,17 @@ from .resource import ResourceManager
 from .match_director import MatchDirector
 
 
+class FarmMode(str, Enum):
+    MANUAL = "manual"
+    WINGMAN_2V2 = "2v2"
+    WINGMAN_RANDOM = "2v2_random"
+    COMPETITIVE_5V5 = "5v5"
+    COMPETITIVE_SHUFFLE = "5v5_shuffle"
+    DEATHMATCH = "deathmatch"
+    ARMS_RACE = "arms_race"
+    ARMORY = "armory"
+
+
 class BatchState(str, Enum):
     IDLE = "idle"
     SELECTING = "selecting_accounts"
@@ -51,6 +62,9 @@ class FarmManager:
             raise ValueError(f"batch already exists: {batch_id}")
         if not account_ids:
             raise ValueError("batch requires at least one account")
+        required = {"2v2": 4, "2v2_random": 4, "5v5": 10, "5v5_shuffle": 10}.get(mode)
+        if required is not None and len(account_ids) != required:
+            raise ValueError(f"{mode} requires exactly {required} accounts")
         if len(set(account_ids)) != len(account_ids):
             raise ValueError("batch contains duplicate accounts")
         missing = [x for x in account_ids if self.pool.get(x) is None]
