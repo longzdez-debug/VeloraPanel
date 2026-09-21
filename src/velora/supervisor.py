@@ -8,6 +8,7 @@ from .process import ProcessSupervisor
 from .launcher import Cs2Launcher
 from .model import AccountState
 from .routes import RouteStore
+from .route_database import RouteDatabase
 from .storage import JsonStore
 from .scheduler import Job, Scheduler
 from .account_pool import AccountPool
@@ -31,6 +32,7 @@ class Supervisor:
         self.processes = ProcessSupervisor()
         self.launcher = Cs2Launcher(self.processes, self.config.process_start_timeout)
         self.route_store = RouteStore(JsonStore(f"{self.config.data_dir}/routes.json"))
+        self.route_database = RouteDatabase()
         self.pool = AccountPool()
         self.resources = ResourceManager(ResourceBudget(max_accounts=getattr(self.config, "max_concurrent_accounts", 1), max_batches=getattr(self.config, "max_parallel_batches", 1)))
         self.farm = FarmManager(self.pool, self.resources)
@@ -108,6 +110,7 @@ class Supervisor:
             if not a.route_map or not a.route_goal:
                 return False
             graph = self.route_store.get(a.route_map)
+            self.route_database.import_graph(a.route_map, graph, route_id="default")
             path = graph.path_from_position(position, a.route_goal, max_snap_distance=1200)
             if not path:
                 return False
@@ -288,6 +291,7 @@ class Supervisor:
         if not a:
             raise KeyError(account_id)
         graph = self.route_store.get(map_name)
+        self.route_database.import_graph(map_name, graph, route_id="default")
         path = graph.shortest_path(start, goal)
         if not path:
             raise ValueError("no route")
@@ -300,6 +304,7 @@ class Supervisor:
         if not a:
             raise KeyError(account_id)
         graph = self.route_store.get(map_name)
+        self.route_database.import_graph(map_name, graph, route_id="default")
         path = graph.path_from_position(position, goal, max_snap_distance=1200)
         if not path:
             raise ValueError("no route from current position")
