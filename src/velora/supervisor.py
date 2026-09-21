@@ -75,6 +75,46 @@ class Supervisor:
             if a.route_map and snap.map_name and snap.map_name != a.route_map:
                 a.walkbot.input.release_all()
 
+    def create_batch(self, batch_id, account_ids, mode="manual", target_xp=None):
+        return self.farm.create_batch(batch_id, list(account_ids), mode=mode, target_xp=target_xp)
+
+    def start_batch(self, batch_id):
+        batch = self.farm.start_batch(batch_id)
+        started = []
+        try:
+            for account_id in batch.account_ids:
+                self.start_account(account_id)
+                started.append(account_id)
+        except Exception as exc:
+            batch.errors.append(str(exc))
+            self.farm.stop_batch(batch_id)
+            for account_id in started:
+                try:
+                    self.stop_account(account_id)
+                except Exception:
+                    pass
+            raise
+        self.farm.mark_ready(batch_id)
+        return batch
+
+    def stop_batch(self, batch_id):
+        batch = self.farm.stop_batch(batch_id)
+        for account_id in batch.account_ids:
+            try:
+                self.stop_account(account_id)
+            except Exception:
+                pass
+        return batch
+
+    def batch_player_ready(self, batch_id):
+        return self.farm.player_ready(batch_id)
+
+    def batch_start_search(self, batch_id):
+        return self.farm.start_search(batch_id)
+
+    def batch_match_found(self, batch_id, match_id=None):
+        return self.farm.match_found(batch_id, match_id)
+
     def set_route(self, account_id, map_name, start, goal):
         a = self.get_account(account_id)
         if not a:
