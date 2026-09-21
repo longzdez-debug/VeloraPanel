@@ -116,6 +116,23 @@ class Supervisor:
 
     def start_batch(self, batch_id):
         batch = self.farm.start_batch(batch_id)
+        # Establish the farm baseline before any process can emit a GSI event.
+        # Otherwise the GSI callback may race with startup and its first XP value
+        # could be discarded after the launcher returns.
+        for account_id in batch.account_ids:
+            state = self.pool.farm[account_id]
+            state.xp_before = None
+            state.xp_after = None
+            account = self.get_account(account_id)
+            if account is not None:
+                account.last_xp = None
+                account.last_gsi = None
+                account.last_provider_timestamp = None
+                account.last_match_result = None
+                account.last_score = None
+                account.last_opponent_score = None
+                account.match_rounds = 0
+                account.match_terminal_latched = False
         started = []
         try:
             for account_id in batch.account_ids:
@@ -131,20 +148,6 @@ class Supervisor:
                     pass
             raise
         self.farm.mark_ready(batch_id)
-        for account_id in batch.account_ids:
-            state = self.pool.farm[account_id]
-            # The stats store contains farm deltas, not the live CS XP total.
-            # Capture the real baseline from the first fresh GSI snapshot instead.
-            state.xp_before = None
-            state.xp_after = None
-            account = self.get_account(account_id)
-            if account is not None:
-                account.last_xp = None
-                account.last_match_result = None
-                account.last_score = None
-                account.last_opponent_score = None
-                account.match_rounds = 0
-                account.match_terminal_latched = False
         self._save_farm()
         return batch
 
@@ -214,6 +217,7 @@ class Supervisor:
             r = self.launcher.start(a.executable, a.launch_args, via_steam=self.config.launch_via_steam)
             a.process_id = r.identity.pid
             a.last_gsi = None
+            a.last_provider_timestamp = None
             a.executable = r.executable
             a.started_at = monotonic()
             guard = self.window_guards.get(a.id)
