@@ -31,3 +31,11 @@
 ## External-only guarantee
 
 The modernization keeps the external boundary. No memory reader, injection, hook, offset/signature scanner or internal CS2 API was added.
+
+
+## Latest integration checkpoint
+- External input boundary is now isolated in `external_input.py`; the NullInput test adapter no longer imports WalkBot.
+- WalkBot movement now passes through DecisionEngine -> Steering/legacy fallback -> MovementController -> ExternalInput.
+- Legacy waypoint paths remain supported without requiring a navigation graph.
+- Architecture guard test rejects forbidden process-memory/injection primitives in `src/velora`.
+- GitHub Actions CI was triggered by the latest commits; final runtime/build verification remains Windows-environment dependent.
