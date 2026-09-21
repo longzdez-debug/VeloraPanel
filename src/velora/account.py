@@ -24,6 +24,8 @@ class Account:
     started_at: float | None = None
     last_xp: int | None = None
     last_match_result: bool | None = None
+    last_score: int | None = None
+    last_opponent_score: int | None = None
 
     def __post_init__(self):
         self.fsm = StateMachine(AccountState.OFFLINE)
@@ -88,6 +90,8 @@ class Account:
             self.last_xp = snap.xp
         phase = (snap.round_phase or snap.map_phase or "").lower()
         if phase in {"gameover", "game_over", "postgame", "over"} and snap.team_score is not None and snap.opponent_score is not None and snap.team_score != snap.opponent_score:
+            self.last_score = snap.team_score
+            self.last_opponent_score = snap.opponent_score
             self.last_match_result = snap.team_score > snap.opponent_score
         self.on_ready()
         previous = self.match.state
