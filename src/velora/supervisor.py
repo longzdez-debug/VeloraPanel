@@ -30,6 +30,8 @@ class Supervisor:
         self.pool = AccountPool()
         self.resources = ResourceManager(ResourceBudget(max_accounts=getattr(self.config, "max_concurrent_accounts", 1), max_batches=getattr(self.config, "max_parallel_batches", 1)))
         self.farm = FarmManager(self.pool, self.resources)
+        self.farm_store = JsonStore(f"{self.config.data_dir}/farm.json")
+        self.farm.load_snapshot(self.farm_store.load([]))
         self.scheduler = Scheduler(max_concurrent=getattr(self.config, "max_concurrent_accounts", 1))
         self.lobbies = LobbyManager()
         self.stats = StatsStore()
@@ -91,8 +93,11 @@ class Supervisor:
     def shuffle_lobby(self, lobby_id, account_ids):
         return self.lobbies.shuffle(lobby_id, list(account_ids))
 
+    def _save_farm(self):
+        self.farm_store.save(self.farm.snapshot())
+
     def create_batch(self, batch_id, account_ids, mode="manual", target_xp=None):
-        return self.farm.create_batch(batch_id, list(account_ids), mode=mode, target_xp=target_xp)
+        result=self.farm.create_batch(batch_id, list(account_ids), mode=mode, target_xp=target_xp); self._save_farm(); return result
 
     def start_batch(self, batch_id):
         batch = self.farm.start_batch(batch_id)
@@ -111,6 +116,7 @@ class Supervisor:
                     pass
             raise
         self.farm.mark_ready(batch_id)
+        self._save_farm()
         return batch
 
     def stop_batch(self, batch_id):
@@ -120,16 +126,17 @@ class Supervisor:
                 self.stop_account(account_id)
             except Exception:
                 pass
+        self._save_farm()
         return batch
 
     def batch_player_ready(self, batch_id):
-        return self.farm.player_ready(batch_id)
+        result=self.farm.player_ready(batch_id); self._save_farm(); return result
 
     def batch_start_search(self, batch_id):
-        return self.farm.start_search(batch_id)
+        result=self.farm.start_search(batch_id); self._save_farm(); return result
 
     def batch_match_found(self, batch_id, match_id=None):
-        return self.farm.match_found(batch_id, match_id)
+        result=self.farm.match_found(batch_id, match_id); self._save_farm(); return result
 
     def set_route(self, account_id, map_name, start, goal):
         a = self.get_account(account_id)
