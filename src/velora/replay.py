@@ -11,13 +11,16 @@ class ReplayEvent:
     correlation_id: str = ""
 
 class ReplaySession:
-    def __init__(self, session_id: str | None = None):
+    def __init__(self, session_id: str | None = None, max_events: int = 10000):
         self.session_id = session_id or str(uuid.uuid4())
+        self.max_events = max(1, int(max_events))
         self.events: list[ReplayEvent] = []
 
     def record(self, kind: str, timestamp: float, payload: dict | None = None, correlation_id: str | None = None):
         event = ReplayEvent(timestamp, kind, dict(payload or {}), correlation_id or self.session_id)
         self.events.append(event)
+        if len(self.events) > self.max_events:
+            del self.events[:-self.max_events]
         return event
 
     def to_dict(self):
