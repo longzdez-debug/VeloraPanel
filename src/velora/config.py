@@ -23,6 +23,8 @@ class Config:
     watchdog_max_restarts: int = 3
     watchdog_backoff: float = 5.0
     launch_via_steam: bool = False
+    max_concurrent_accounts: int = 1
+    max_parallel_batches: int = 1
 
     @classmethod
     def from_env(cls):
@@ -41,4 +43,6 @@ class Config:
             max(0, int(os.getenv("VELORA_WATCHDOG_MAX_RESTARTS", "3"))),
             max(0.5, float(os.getenv("VELORA_WATCHDOG_BACKOFF", "5"))),
             _bool("VELORA_LAUNCH_VIA_STEAM", False),
+            max(1, int(os.getenv("VELORA_MAX_CONCURRENT_ACCOUNTS", "1"))),
+            max(1, int(os.getenv("VELORA_MAX_PARALLEL_BATCHES", "1"))),
         )
