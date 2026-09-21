@@ -56,3 +56,12 @@ def test_cpu_vision_backend_returns_real_frame_metrics():
     result = CpuVisionBackend(sample_step=1).process(Frame(FrameMetadata(1,1.0,4,4),pixels))
     assert result.observations and result.observations[0].kind == "frame_metrics"
     assert result.observations[0].data["mean_luma"] > 0
+
+
+def test_replay_session_is_bounded():
+    from velora.replay import ReplaySession
+    replay = ReplaySession("test", max_events=3)
+    for i in range(5):
+        replay.record("event", float(i), {"i": i})
+    assert len(replay.events) == 3
+    assert replay.events[0].payload["i"] == 2
