@@ -286,3 +286,20 @@ def test_supervisor_restores_orchestrator_runtime(tmp_path):
     assert "b" in second.orchestrator.runtime
     assert second.orchestrator.runtime["b"].retries == 2
     assert second.orchestrator.runtime["b"].last_error == "recovering"
+
+
+def test_menu_transition_marks_active_match_game_over():
+    from velora.account import Account
+    from velora.model import AccountState, MatchState, GsiSnapshot
+    from velora.walkbot import WalkBot
+
+    class Input:
+        def release_all(self): pass
+        def move(self, forward, back, left, right): pass
+
+    account = Account("a", "A", WalkBot(Input()))
+    account.start()
+    account.on_gsi(GsiSnapshot(1.0, activity="playing", map_name="de_dust2", map_phase="live", round_phase="live", round_number=1))
+    account.on_gsi(GsiSnapshot(2.0, activity="menu", map_name="de_dust2", map_phase="menu", round_number=1))
+    assert account.fsm.state == AccountState.MENU
+    assert account.match_state() == MatchState.GAME_OVER
