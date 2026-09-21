@@ -1,0 +1,35 @@
+name: VELORA CI
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test-and-build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install
+        run: python -m pip install -e ".[dev]"
+      - name: Compile
+        run: python -m compileall -q src tests
+      - name: Ruff
+        run: python -m ruff check src tests
+      - name: Tests
+        run: python -m pytest -vv
+      - name: Build EXE
+        run: |
+          python -m pip install pyinstaller
+          python -m PyInstaller --clean --noconfirm --onefile --console --name VELORA_PANEL --paths src --collect-submodules velora src/velora/__main__.py
+      - name: Verify EXE
+        shell: powershell
+        run: |
+          if (!(Test-Path "dist\VELORA_PANEL.exe")) { throw "EXE was not created" }
+          $size = (Get-Item "dist\VELORA_PANEL.exe").Length
+          if ($size -lt 1000000) { throw "EXE is unexpectedly small: $size bytes" }
+          Write-Host "EXE size: $size bytes"
