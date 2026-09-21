@@ -1,4 +1,4 @@
-from velora.process import ProcessSupervisor
+from velora.process import ProcessIdentity, ProcessSupervisor
 
 def test_empty_supervisor():
     assert ProcessSupervisor().owned == {}
@@ -8,7 +8,6 @@ def test_claim_missing_process_is_safe():
 
 
 def test_alive_handles_process_race():
-    from velora.process import ProcessIdentity
     supervisor = ProcessSupervisor()
     supervisor.owned[999999999] = ProcessIdentity(999999999, 0.0, "C:/missing/cs2.exe")
     assert supervisor.alive(999999999) is False
