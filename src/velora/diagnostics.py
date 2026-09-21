@@ -2,8 +2,11 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from pathlib import Path
+import json
 import os
 import socket
+import urllib.error
+import urllib.request
 
 import psutil
 
@@ -52,12 +55,35 @@ def _port_available(host: str, port: int) -> tuple[bool, str]:
         sock.close()
 
 
+
+def _dashboard_health(host: str, port: int) -> tuple[bool, str]:
+    """Check that the configured dashboard endpoint is actually serving VELORA."""
+    url = f"http://{host}:{port}/api/status"
+    request = urllib.request.Request(url, headers={"User-Agent": "VELORA-Diagnostics/1"})
+    try:
+        with urllib.request.urlopen(request, timeout=0.5) as response:
+            if response.status != 200:
+                return False, f"{host}:{port} responded with HTTP {response.status}"
+            payload = json.loads(response.read().decode("utf-8", errors="replace"))
+            required = {"running", "kill_switch", "accounts", "gsi"}
+            if not required.issubset(payload):
+                return False, f"{host}:{port} responded, but not as a VELORA PANEL dashboard"
+            return True, f"{host}:{port} is serving VELORA PANEL"
+    except urllib.error.HTTPError as exc:
+        return False, f"{host}:{port} responded with HTTP {exc.code}"
+    except (urllib.error.URLError, TimeoutError, OSError, ValueError, json.JSONDecodeError):
+        owner = _port_owner(host, port)
+        if owner:
+            return False, f"{host}:{port} is already in use by PID {owner}"
+        return True, f"{host}:{port} is available"
+
+
 def run_checks(data_dir="data", gsi_port=27100, dashboard_port=8765, host="127.0.0.1"):
     steam = find_steam()
     cs2 = find_cs2(steam)
     data_path = Path(data_dir)
     gsi_ok, gsi_detail = _port_available(host, int(gsi_port))
-    dashboard_ok, dashboard_detail = _port_available(host, int(dashboard_port))
+    dashboard_ok, dashboard_detail = _dashboard_health(host, int(dashboard_port))
     return [
         Check("python", True, "runtime available"),
         Check("steam", steam is not None, str(steam or "not found")),
