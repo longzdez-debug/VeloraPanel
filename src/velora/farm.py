@@ -52,77 +52,93 @@ class FarmBatch:
 
 
 class FarmManager:
-    """Batch orchestration state, deliberately independent from CS2 lobby automation."""
+    """Owns durable batch state and resource claims; platform automation stays outside."""
 
     def __init__(self, pool: AccountPool, resources: ResourceManager):
         self.pool = pool
         self.resources = resources
         self.batches: dict[str, FarmBatch] = {}
 
-    def create_batch(self, batch_id: str, account_ids: list[str], mode: str = "manual", target_xp: int | None = None) -> FarmBatch:
+    def create_batch(self, batch_id, account_ids, mode="manual", target_xp=None):
         if batch_id in self.batches:
             raise ValueError(f"batch already exists: {batch_id}")
         if not account_ids:
             raise ValueError("batch requires at least one account")
-        required = {"2v2": 4, "2v2_random": 4, "5v5": 10, "5v5_shuffle": 10}.get(mode)
-        if required is not None and len(account_ids) != required:
-            raise ValueError(f"{mode} requires exactly {required} accounts")
         if len(set(account_ids)) != len(account_ids):
             raise ValueError("batch contains duplicate accounts")
         missing = [x for x in account_ids if self.pool.get(x) is None]
         if missing:
             raise KeyError(f"unknown accounts: {', '.join(missing)}")
+        self._validate_mode(mode, len(account_ids))
         if not self.resources.can_start_batch(batch_id):
             raise RuntimeError("batch resource capacity reached")
         batch = FarmBatch(batch_id, list(account_ids), mode, target_xp)
         self.batches[batch_id] = batch
         return batch
 
-    def start_batch(self, batch_id: str) -> FarmBatch:
+    @staticmethod
+    def _validate_mode(mode, size):
+        required = {
+            "2v2": 4, "2v2_random": 4,
+            "5v5": 10, "5v5_shuffle": 10,
+            "deathmatch": 1, "arms_race": 1, "armory": 1, "manual": 1,
+        }.get(mode)
+        if required is None:
+            raise ValueError(f"unsupported farm mode: {mode}")
+        if size != required:
+            raise ValueError(f"{mode} requires exactly {required} accounts")
+
+    def start_batch(self, batch_id):
         batch = self.batches[batch_id]
         if batch.state not in (BatchState.IDLE, BatchState.ERROR):
             return batch
+        self._validate_mode(batch.mode, batch.size)
         if not self.resources.start_batch(batch.id):
             raise RuntimeError("batch resource capacity reached")
-        if any(not self.pool.get(account_id) or not getattr(self.pool.get(account_id), "enabled", True)
-               for account_id in batch.account_ids):
+        if any(not self.pool.get(a) or not getattr(self.pool.get(a), "enabled", True) for a in batch.account_ids):
             self.resources.stop_batch(batch.id)
             raise RuntimeError("batch contains disabled or unavailable account")
-        batch.scenario.load(batch.mode)
-        if batch.scenario.current.required_players > 1 and batch.size != batch.scenario.current.required_players:
+        try:
+            batch.scenario.load(batch.mode)
+            if batch.scenario.current.required_players != batch.size:
+                raise ValueError(f"{batch.mode} requires {batch.scenario.current.required_players} accounts")
+            batch.director.prepare(batch.size)
+        except Exception:
             self.resources.stop_batch(batch.id)
-            raise ValueError(f"{batch.mode} requires {batch.scenario.current.required_players} accounts")
-        batch.director.prepare(batch.size)
-        batch.state = BatchState.SELECTING
+            raise
+        batch.state = BatchState.STARTING
         batch.started_at = time()
+        batch.finished_at = None
+        batch.errors.clear()
         for account_id in batch.account_ids:
             self.pool.mark(account_id, FarmStatus.IN_PROGRESS, target_xp=batch.target_xp)
-        batch.state = BatchState.STARTING
         return batch
 
-    def mark_ready(self, batch_id: str) -> FarmBatch:
+    def mark_ready(self, batch_id):
         batch = self.batches[batch_id]
         if batch.state == BatchState.STARTING:
             batch.state = BatchState.WAITING_FOR_READY
         return batch
 
-    def mark_farming(self, batch_id: str) -> FarmBatch:
+    def mark_farming(self, batch_id):
         batch = self.batches[batch_id]
         if batch.state in (BatchState.STARTING, BatchState.WAITING_FOR_READY):
             batch.state = BatchState.FARMING
         return batch
 
-    def finish_batch(self, batch_id: str, success: bool = True) -> FarmBatch:
+    def finish_batch(self, batch_id, success=True):
         batch = self.batches[batch_id]
         batch.state = BatchState.FINISHED if success else BatchState.ERROR
         batch.finished_at = time()
-        if success:
-            for account_id in batch.account_ids:
+        for account_id in batch.account_ids:
+            if success:
                 self.pool.mark(account_id, FarmStatus.COMPLETED)
+            else:
+                self.pool.mark(account_id, FarmStatus.ERROR)
         self.resources.stop_batch(batch.id)
         return batch
 
-    def stop_batch(self, batch_id: str) -> FarmBatch:
+    def stop_batch(self, batch_id):
         batch = self.batches[batch_id]
         batch.state = BatchState.STOPPING
         batch.finished_at = time()
@@ -132,50 +148,66 @@ class FarmManager:
                 self.pool.mark(account_id, FarmStatus.PARTIAL)
         return batch
 
-    def player_ready(self, batch_id: str) -> FarmBatch:
+    def player_ready(self, batch_id):
         batch = self.batches[batch_id]
         batch.director.player_ready()
-        if batch.director.state.value == "lobby_ready":
-            batch.state = BatchState.WAITING_FOR_READY
-        elif batch.director.state.value == "waiting_for_players":
+        if batch.director.state.value in ("lobby_ready", "waiting_for_players"):
             batch.state = BatchState.WAITING_FOR_READY
         return batch
 
-    def start_search(self, batch_id: str) -> FarmBatch:
+    def start_search(self, batch_id):
         batch = self.batches[batch_id]
         batch.director.start_search()
         return batch
 
-    def match_found(self, batch_id: str, match_id: int | None = None) -> FarmBatch:
+    def match_found(self, batch_id, match_id=None):
         batch = self.batches[batch_id]
         batch.director.match_found(match_id)
+        batch.director.start_farming()
         batch.state = BatchState.FARMING
         batch.scenario.start()
         return batch
 
-    def load_snapshot(self, items: list[dict]) -> None:
+    def load_snapshot(self, items):
         for item in items or []:
             try:
-                b=FarmBatch(str(item["id"]),[str(x) for x in item.get("account_ids",[])],str(item.get("mode","manual")),item.get("target_xp"))
-                b.state=BatchState(str(item.get("state",BatchState.IDLE.value)))
-                b.created_at=item.get("created_at",b.created_at); b.started_at=item.get("started_at"); b.finished_at=item.get("finished_at")
-                b.errors=list(item.get("errors",[]))[-20:]
-                b.director.expected_players=int(item.get("expected_players",b.size)); b.director.ready_players=int(item.get("ready_players",0)); b.director.match_id=item.get("match_id")
-                self.batches[b.id]=b
-            except (KeyError,ValueError,TypeError):
+                b = FarmBatch(
+                    str(item["id"]),
+                    [str(x) for x in item.get("account_ids", [])],
+                    str(item.get("mode", "manual")),
+                    item.get("target_xp"),
+                )
+                b.state = BatchState(str(item.get("state", BatchState.IDLE.value)))
+                b.created_at = item.get("created_at", b.created_at)
+                b.started_at = item.get("started_at")
+                b.finished_at = item.get("finished_at")
+                b.errors = list(item.get("errors", []))[-20:]
+                b.director.expected_players = int(item.get("expected_players", b.size))
+                b.director.ready_players = int(item.get("ready_players", 0))
+                b.director.match_id = item.get("match_id")
+                saved_director = item.get("match_director", "idle")
+                try:
+                    b.director.state = type(b.director.state)(saved_director)
+                except ValueError:
+                    b.director.state = type(b.director.state).IDLE
+                # A process restart cannot safely resume an in-flight lobby/search.
+                # Convert it to recoverable ERROR instead of pretending the old
+                # Steam/CS2 state still exists.
+                if b.state not in (BatchState.IDLE, BatchState.FINISHED, BatchState.STOPPING):
+                    b.state = BatchState.ERROR
+                    b.director.fail("recovery required after process restart")
+                    b.errors.append("recovery required after process restart")
+                self.batches[b.id] = b
+            except (KeyError, ValueError, TypeError):
                 continue
 
-    def snapshot(self) -> list[dict]:
+    def snapshot(self):
         return [{
-            "id": b.id,
-            "state": b.state.value,
-            "mode": b.mode,
-            "account_ids": list(b.account_ids),
-            "size": b.size,
-            "target_xp": b.target_xp,
-            "started_at": b.started_at,
-            "finished_at": b.finished_at,
-            "errors": list(b.errors[-5:]),
+            "id": b.id, "state": b.state.value, "mode": b.mode,
+            "account_ids": list(b.account_ids), "size": b.size,
+            "target_xp": b.target_xp, "created_at": b.created_at,
+            "started_at": b.started_at, "finished_at": b.finished_at,
+            "errors": list(b.errors[-20:]),
             "match_director": b.director.state.value,
             "ready_players": b.director.ready_players,
             "expected_players": b.director.expected_players,
