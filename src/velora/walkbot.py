@@ -14,6 +14,8 @@ from .world import WorldModel
 from .gsi_normalizer import GsiNormalizer
 from .replay import ReplaySession
 from .navigation import NavGraph, NavigationGoal
+from .external_input import ExternalInput
+from .recovery_coordinator import RecoveryCoordinator
 
 @dataclass(frozen=True)
 class Waypoint:
@@ -31,12 +33,8 @@ class WalkConfig:
  recovery_seconds:float=0.45
  recovery_side_seconds:float=0.22
 
-class InputAdapter:
- def release_all(self): pass
- def move(self,forward,back,left,right): pass
-
 class WalkBot:
- def __init__(self,input_adapter,config=None,replan:Callable[[tuple[float,float,float]],bool]|None=None,replay:ReplaySession|None=None,nav_graph:NavGraph|None=None):
+ def __init__(self,input_adapter:ExternalInput,config=None,replan:Callable[[tuple[float,float,float]],bool]|None=None,replay:ReplaySession|None=None,nav_graph:NavGraph|None=None):
   self.input=input_adapter;self.cfg=config or WalkConfig();self.replan=replan
   self.fsm=StateMachine(WalkState.DISABLED);self._configure()
   self.path:list[Waypoint]=[];self.index=0
@@ -53,6 +51,7 @@ class WalkBot:
   self.nav_graph=nav_graph
   self.navigation_goal:NavigationGoal|None=None
   self.last_decision=None
+  self.recovery_coordinator=RecoveryCoordinator(self.cfg.max_recoveries)
 
  def _configure(self):
   s=WalkState
@@ -82,6 +81,7 @@ class WalkBot:
 
  def set_path(self,path):
   self.path=list(path);self.index=0;self.recoveries=0
+  self.recovery_coordinator.reset()
   self.world.update_navigation(path=tuple(w.id for w in self.path), progress=0.0, target_area=self.path[-1].id if self.path else None)
   self.progress_position=None;self.last_progress=monotonic();self.recovery_reason=None
 
@@ -114,7 +114,8 @@ class WalkBot:
    "progress_percent":round((self.index/max(1,len(self.path)-1))*100,1) if self.path else 0.0,
    "distance_to_target":round(distance,2) if distance is not None else None,"stuck_count":self.recoveries,
    "max_recoveries":self.cfg.max_recoveries,"recovery_active":self.fsm.state==WalkState.RECOVERING,
-   "recovery_reason":self.recovery_reason,"last_gsi_age":round(age,3) if age is not None else None,
+   "recovery_reason":self.recovery_reason,
+   "recovery_level":self.recovery_coordinator.level,"last_gsi_age":round(age,3) if age is not None else None,
    "last_progress_age":round(progress_age,3) if progress_age is not None else None,
    "last_tick_age":None if self.last_tick is None else round(max(0.0,now-self.last_tick),3),
    "last_command":self.last_command,"position_confidence":self.world.snapshot().localization.position.confidence,
@@ -161,8 +162,9 @@ class WalkBot:
    if self.recoveries>=self.cfg.max_recoveries:self.stop();return
    self.fsm.dispatch("retry");self.last_progress=now;return
   elapsed=now-self.recovery_started
-  if elapsed<self.cfg.recovery_side_seconds:self.input.move(False,False,True,False)
-  else:self.input.move(True,False,False,True)
+  if self.recovery_coordinator.level>=4:self.movement_controller.stop()
+  elif elapsed<self.cfg.recovery_side_seconds:self.movement_controller.apply(MovementIntent(strafe=1.0))
+  else:self.movement_controller.apply(MovementIntent(forward=1.0,strafe=1.0))
 
  def tick(self,position=None):
   now=monotonic();self.last_tick=now
@@ -182,9 +184,18 @@ class WalkBot:
   if self.progress_position is None:self.progress_position=position;self.last_progress=now
   elif hypot(position[0]-self.progress_position[0],position[1]-self.progress_position[1])>2:self.progress_position=position;self.last_progress=now;self.recoveries=0
   if now-self.last_progress>=self.cfg.stuck_seconds:
-   self.input.release_all();self.recoveries+=1;self.recovery_reason="stuck"
-   if self.recoveries>self.cfg.max_recoveries:self.stop();return
-   self.fsm.dispatch("stuck");self.fsm.dispatch("recover");self.recovery_started=now;self.recovery_until=now+self.cfg.recovery_seconds;return
+   self.input.release_all()
+   progress_age=now-self.last_progress
+   loc=self.world.snapshot().localization.position
+   recovery=self.recovery_coordinator.observe("stuck",progress_age,loc.confidence,now)
+   if recovery is None:return
+   self.recoveries=self.recovery_coordinator.count;self.recovery_reason=recovery.reason
+   if recovery.action=="navigation_reset":self.stop();return
+   if self.fsm.state==WalkState.NAVIGATING:self.fsm.dispatch("stuck")
+   if self.fsm.state==WalkState.STUCK:self.fsm.dispatch("recover")
+   self.recovery_started=now;self.recovery_until=now+self.cfg.recovery_seconds
+   if self.replay:self.replay.record("WalkBot.RecoveryDecision",now,{"level":recovery.level,"action":recovery.action,"reason":recovery.reason})
+   return
   decision_goal=self.navigation_goal or NavigationGoal("waypoint", target_position=(target.x,target.y,target.z), reason="path_waypoint")
   decision=self.decision_engine.decide(self.world.snapshot(), decision_goal)
   self.last_decision=decision
