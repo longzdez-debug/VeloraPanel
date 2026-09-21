@@ -34,6 +34,15 @@ async function assign(id,goal){try{let map=$('map').value;if(!map)return alert('
 async function init(){let maps=await api('/api/routes');$('map').innerHTML=maps.maps.map(x=>'<option>'+x+'</option>').join('');if(maps.maps.length){await refreshMap()}load();diag()}
 init();setInterval(load,800);setInterval(diag,5000)</script></body></html>"""
 
+def _as_bool(value, field):
+ if isinstance(value, bool):
+  return value
+ if isinstance(value, str):
+  normalized=value.strip().lower()
+  if normalized in {"1","true","yes","on"}: return True
+  if normalized in {"0","false","no","off"}: return False
+ raise ValueError(f"{field} must be a boolean")
+
 class Dashboard:
  def __init__(self,supervisor,host="127.0.0.1",port=8765):self.s=supervisor;self.host=host;self.port=port;self.server=None
  def start(self):
@@ -79,8 +88,8 @@ class Dashboard:
       d=self._body()
       if "name" in d:a.name=str(d["name"]).strip() or a.name
       if "steam_id" in d:a.steam_id=str(d["steam_id"]).strip() or None
-      if "enabled" in d:a.enabled=bool(d["enabled"])
-      if "walkbot" in d:a.walkbot.enabled=bool(d["walkbot"])
+      if "enabled" in d:a.enabled=_as_bool(d["enabled"],"enabled")
+      if "walkbot" in d:a.walkbot.enabled=_as_bool(d["walkbot"],"walkbot")
       if "executable" in d:a.executable=str(d["executable"])
       if "launch_args" in d:
        if not isinstance(d["launch_args"],list): return self._json({"error":"launch_args must be a list"},400)
