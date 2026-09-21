@@ -107,11 +107,11 @@ The audited WalkBot path contains no ReadProcessMemory, WriteProcessMemory, Open
 ## Migration status
 
 - Phase 1 Audit: COMPLETE
-- Phase 2 Core WorldModel: IN PROGRESS
-- Phase 3 GSI normalization: NEXT
-- Phase 4 Screen capture: pending
-- Phase 5 Vision: pending
-- Phase 6 Localization: pending
+- Phase 2 Core WorldModel: COMPLETE (integrated into WalkBot)
+- Phase 3 GSI normalization: COMPLETE (normalized GSI publisher integrated)
+- Phase 4 Screen capture: COMPLETE (Windows GDI backend + bounded frame buffer)
+- Phase 5 Vision: COMPLETE as foundation (CPU metrics backend; domain detectors still require map/template/model assets)
+- Phase 6 Localization: FOUNDATION COMPLETE (confidence-weighted source fusion; runtime landmark source pending)
 - Phase 7 NavMesh: pending
 - Phase 8 A*: pending migration
 - Phase 9 Route database: pending
