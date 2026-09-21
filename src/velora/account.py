@@ -131,7 +131,7 @@ class Account:
         if self.match.state == RoundState.GAME_OVER and self.fsm.state == AccountState.IN_MATCH:
             self.fsm.dispatch("game_over")
             self.match_terminal_latched = True
-            self.walkbot.input.release_all()
+            self.walkbot.stop_movement()
 
         if self._is_queue(snap) and self.fsm.state == AccountState.MENU:
             self.fsm.dispatch("queue")
