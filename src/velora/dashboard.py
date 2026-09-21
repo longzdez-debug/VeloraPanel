@@ -72,7 +72,7 @@ class Dashboard:
      if len(parts)==4 and parts[:3]==["api","farm","batches"]:
       batch_id=parts[3]; d=self._body()
       action=str(d.get("action",""))
-      if action=="create": batch=outer.s.create_batch(str(d["id"]),[str(x) for x in d["account_ids"]],str(d.get("mode","manual")),d.get("target_xp"))
+      if action=="create": batch=outer.s.create_batch(str(d["id"]),[str(x) for x in d["account_ids"]],str(d.get("mode","manual")),d.get("target_xp"),bool(d.get("repeat",False)),d.get("max_matches"))
       elif action=="start": batch=outer.s.start_batch(batch_id)
       elif action=="stop": batch=outer.s.stop_batch(batch_id)
       elif action=="ready": batch=outer.s.batch_player_ready(batch_id)
