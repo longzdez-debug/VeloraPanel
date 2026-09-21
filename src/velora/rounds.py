@@ -58,3 +58,5 @@ class MatchTracker:
         self.map_name = None
         self.round_number = None
         self.match_id += 1
+        self.rounds_seen = 0
+        self.last_counted_round = None
