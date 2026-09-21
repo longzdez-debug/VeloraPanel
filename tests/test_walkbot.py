@@ -52,3 +52,14 @@ def test_telemetry_exposes_perception_state():
  assert t["vision_frame_id"]==7
  assert t["vision_observation_count"]==3
  assert t["vision_confidence"]==0.8
+
+
+def test_gsi_timeout_stops_through_movement_controller():
+    i, w = boot()
+    w.set_path([Waypoint("a", 500, 0)])
+    calls = []
+    original = w.movement_controller.stop
+    w.movement_controller.stop = lambda: (calls.append(True), original())[1]
+    w.last_gsi = 0
+    w.tick((0, 0, 0))
+    assert calls
