@@ -1,5 +1,6 @@
 import asyncio
 import os
+
 from .account import Account
 from .accounts import AccountStore
 from .config import Config
@@ -12,11 +13,12 @@ from .walkbot import WalkBot
 from .window_guard import Cs2WindowGuard
 from .windows import WindowsInput
 
+
 def main():
     c = Config.from_env()
     os.makedirs(c.data_dir, exist_ok=True)
     logger = configure_logging(c.data_dir)
-    for check in run_checks(c.data_dir, c.gsi_port, c.dashboard_port):
+    for check in run_checks(c.data_dir, c.gsi_port, c.dashboard_port, c.gsi_host):
         logger.info("diagnostic %s: %s - %s", check.name, check.ok, check.detail)
 
     sup = Supervisor(c)
@@ -35,7 +37,17 @@ def main():
             sup.bind_window_guard(p.id, guard)
         else:
             adapter = NullInput()
-        sup.add_account(Account(p.id, p.name, WalkBot(adapter), p.steam_id or None))
+        account = Account(
+            p.id,
+            p.name,
+            WalkBot(adapter),
+            p.steam_id or None,
+            enabled=p.enabled,
+            executable=p.executable,
+            launch_args=list(p.launch_args),
+        )
+        account.walkbot.enabled = bool(p.walkbot)
+        sup.add_account(account)
 
     ui = Dashboard(sup, c.dashboard_host, c.dashboard_port)
     ui.start()
@@ -47,6 +59,7 @@ def main():
     finally:
         ui.stop()
         sup.stop()
+
 
 if __name__ == "__main__":
     main()
