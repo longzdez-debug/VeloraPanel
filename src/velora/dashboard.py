@@ -136,7 +136,7 @@ class Dashboard:
   self.language=saved.get("language","en") if isinstance(saved,dict) else "en"
   if self.language not in {"en","ru"}: self.language="en"
  def _history(self, machine):
-  return [{"ts":round(x.timestamp,3),"source":getattr(x.source,"value",str(x.source)),"event":str(x.event),"target":getattr(x.target,"value",str(x.target))} for x in getattr(machine,"_history",())[-30:]]
+  return [{"ts":round(x.timestamp,3),"source":getattr(x.source,"value",str(x.source)),"event":getattr(x.event,"value",str(x.event)),"target":getattr(x.target,"value",str(x.target))} for x in getattr(machine,"_history",())[-30:]]
 
  def _event(self,kind,message,account_id=None,batch_id=None,level="info"):
   with self._event_lock:
