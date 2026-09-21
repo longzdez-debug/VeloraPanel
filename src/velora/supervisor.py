@@ -162,7 +162,7 @@ class Supervisor:
         for a in targets:
             a.on_gsi(snap)
             if a.route_map and snap.map_name and snap.map_name != a.route_map:
-                a.walkbot.input.release_all()
+                a.walkbot.emergency_stop()
 
     def create_lobby(self, lobby_id, account_ids):
         return self.lobbies.create(lobby_id, list(account_ids))
