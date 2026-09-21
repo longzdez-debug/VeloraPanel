@@ -133,8 +133,10 @@ class Supervisor:
         self.farm.mark_ready(batch_id)
         for account_id in batch.account_ids:
             state = self.pool.farm[account_id]
-            state.xp_before = self.stats.get(account_id).xp
-            state.xp_after = state.xp_before
+            # The stats store contains farm deltas, not the live CS XP total.
+            # Capture the real baseline from the first fresh GSI snapshot instead.
+            state.xp_before = None
+            state.xp_after = None
             account = self.get_account(account_id)
             if account is not None:
                 account.last_xp = None
