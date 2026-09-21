@@ -76,7 +76,11 @@ def test_dashboard_exposes_walkbot_gsi_and_route_validation_surfaces():
     from velora.dashboard import Dashboard
 
     assert "walkbot_telemetry" in inspect.getsource(Dashboard.start)
-    assert "outer.s.gsi.snapshot()" in inspect.getsource(Dashboard.start)
+    source = inspect.getsource(Dashboard.start)
+    assert "outer.s.gsi.snapshot()" in source
+    assert "outer.s.gsi.health()" in source
+    assert HTML.count("<section id=walkbot") == 1
+    assert "id=walkTelemetry" in HTML
     assert "api/routes/" in HTML and "function validateRoute" in HTML
     assert "routeValidation" in HTML
     assert "RECOVERY ACTIVE" in HTML
