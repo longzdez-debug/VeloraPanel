@@ -16,7 +16,7 @@ class Config:
     dashboard_host: str = "127.0.0.1"
     dashboard_port: int = 8765
     data_dir: str = "data"
-    input_enabled: bool = False
+    input_enabled: bool = True
     input_require_foreground: bool = True
     process_start_timeout: float = 30.0
     gsi_timeout: float = 8.0
@@ -26,6 +26,7 @@ class Config:
     launch_via_steam: bool = False
     max_concurrent_accounts: int = 1
     max_parallel_batches: int = 1
+    mouse_turn_counts: int = 320
 
     @classmethod
     def from_env(cls):
@@ -37,7 +38,7 @@ class Config:
             os.getenv("VELORA_DASHBOARD_HOST", "127.0.0.1"),
             int(os.getenv("VELORA_DASHBOARD_PORT", "8765")),
             os.getenv("VELORA_DATA_DIR", "data"),
-            _bool("VELORA_INPUT_ENABLED", False),
+            _bool("VELORA_INPUT_ENABLED", True),
             _bool("VELORA_INPUT_REQUIRE_FOREGROUND", True),
             max(5.0, float(os.getenv("VELORA_PROCESS_START_TIMEOUT", "30"))),
             max(2.0, float(os.getenv("VELORA_GSI_TIMEOUT", "8"))),
@@ -47,4 +48,5 @@ class Config:
             _bool("VELORA_LAUNCH_VIA_STEAM", False),
             max(1, int(os.getenv("VELORA_MAX_CONCURRENT_ACCOUNTS", "1"))),
             max(1, int(os.getenv("VELORA_MAX_PARALLEL_BATCHES", "1"))),
+            max(20, int(os.getenv("VELORA_MOUSE_TURN_COUNTS", "320"))),
         )
