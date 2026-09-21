@@ -212,12 +212,15 @@ class Supervisor:
             return a.process_id
         if not self.resources.start_account(a.id):
             raise RuntimeError("account resource capacity reached")
+        # Reset GSI sequencing before launching so no first snapshot can race
+        # with a post-launch reset.
+        a.last_gsi = None
+        a.last_provider_timestamp = None
+        a.last_xp = None
         a.start()
         try:
             r = self.launcher.start(a.executable, a.launch_args, via_steam=self.config.launch_via_steam)
             a.process_id = r.identity.pid
-            a.last_gsi = None
-            a.last_provider_timestamp = None
             a.executable = r.executable
             a.started_at = monotonic()
             guard = self.window_guards.get(a.id)
