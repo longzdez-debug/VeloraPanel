@@ -12,7 +12,7 @@ class EventType(str,Enum):
 @dataclass(frozen=True)
 class GsiSnapshot:
  received_at:float; provider_timestamp:int|None=None; map_name:str|None=None; map_phase:str|None=None; round_phase:str|None=None; activity:str|None=None; health:int|None=None; steam_id:str|None=None
- position:tuple[float,float,float]|None=None; forward:tuple[float,float,float]|None=None; round_number:int|None=None
+ position:tuple[float,float,float]|None=None; forward:tuple[float,float,float]|None=None; round_number:int|None=None; xp:int|None=None
  raw:dict[str,Any]=field(default_factory=dict)
 
  @property
