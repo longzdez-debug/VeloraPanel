@@ -75,7 +75,7 @@ class WalkBot:
   self.enabled=False;self.movement_controller.stop()
 
  def stop(self):
-  self.enabled=False;self.input.release_all()
+  self.enabled=False;self.movement_controller.stop()
   if self.fsm.state!=WalkState.DISABLED:self.fsm.dispatch("stop")
   if self.fsm.state==WalkState.STOPPING:self.fsm.dispatch("reset")
 
@@ -150,7 +150,7 @@ class WalkBot:
   activity=(snap.activity or "").lower();phase=(snap.round_phase or snap.map_phase or "").lower()
   live=activity in {"playing","live"} and phase in {"live","playing","freezetime","halftime","intermission"}
   if not live or (snap.health is not None and snap.health<=0):
-   self.input.release_all()
+   self.movement_controller.stop()
    if activity in {"menu","mainmenu"} or phase in {"menu","mainmenu","postgame","gameover","game_over"}:
     if self.fsm.state not in (WalkState.DISABLED,WalkState.INITIALIZING,WalkState.WAITING_FOR_GAME):self.fsm.dispatch("reset_game")
    return
