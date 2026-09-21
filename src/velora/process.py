@@ -76,14 +76,26 @@ class ProcessSupervisor:
     def terminate(self, pid, timeout=5):
         if not self.is_owned(pid):
             return False
-        p = psutil.Process(pid)
-        p.terminate()
         try:
-            p.wait(timeout)
-        except psutil.TimeoutExpired:
-            p.kill()
-            p.wait(timeout)
-        self.forget(pid)
+            p = psutil.Process(pid)
+            p.terminate()
+            try:
+                p.wait(timeout)
+            except psutil.TimeoutExpired:
+                try:
+                    p.kill()
+                    p.wait(timeout)
+                except (psutil.NoSuchProcess, psutil.ZombieProcess):
+                    pass
+        except (psutil.NoSuchProcess, psutil.ZombieProcess):
+            # The process may exit between the ownership check and terminate().
+            # It is still safe to release our ownership record.
+            pass
+        except psutil.AccessDenied:
+            return False
+        finally:
+            if not self.alive(pid):
+                self.forget(pid)
         return True
 
     def status(self, pid):
