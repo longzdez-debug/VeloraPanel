@@ -48,3 +48,25 @@ def test_gsi_callback_exception_does_not_break_endpoint():
         conn.close()
     finally:
         server.stop()
+
+
+def test_gsi_extracts_player_xp_when_present():
+    import socket
+    from http.client import HTTPConnection
+    seen = []
+    server = GsiServer(host="127.0.0.1", port=0)
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        port = sock.getsockname()[1]
+    server.port = port
+    server.on_snapshot(seen.append)
+    server.start()
+    try:
+        body = json.dumps({"provider":{"timestamp":7},"map":{"name":"de_dust2","phase":"live","round":1},"round":{"phase":"live"},"player":{"steamid":"1","activity":"playing","state":{"health":100,"xp":123}}}).encode()
+        conn = HTTPConnection("127.0.0.1", port, timeout=2)
+        conn.request("POST", "/", body=body)
+        assert conn.getresponse().status == 204
+        conn.close()
+        assert seen and seen[0].xp == 123
+    finally:
+        server.stop()
