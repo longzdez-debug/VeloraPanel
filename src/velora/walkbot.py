@@ -72,7 +72,7 @@ class WalkBot:
   if self.fsm.state==WalkState.DISABLED:self.fsm.dispatch("start")
 
  def emergency_stop(self):
-  self.enabled=False;self.input.release_all()
+  self.enabled=False;self.movement_controller.stop()
 
  def stop(self):
   self.enabled=False;self.input.release_all()
