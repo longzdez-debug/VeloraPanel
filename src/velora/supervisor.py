@@ -16,6 +16,7 @@ from .resource import ResourceBudget, ResourceManager
 from .lobby import LobbyManager
 from .stats import StatsStore
 from .orchestrator import BatchRuntime, FarmOrchestrator
+from .log import get_logger
 
 @dataclass
 class Supervisor:
@@ -24,6 +25,8 @@ class Supervisor:
     running: bool = False
 
     def __post_init__(self):
+        self.logger = get_logger("supervisor")
+        self.logger.info("supervisor initializing")
         self.gsi = GsiServer(self.config.gsi_host, self.config.gsi_port, self.config.gsi_token)
         self.processes = ProcessSupervisor()
         self.launcher = Cs2Launcher(self.processes, self.config.process_start_timeout)
@@ -91,6 +94,7 @@ class Supervisor:
         ))
 
     def add_account(self, a):
+        self.logger.info("account added id=%s name=%s enabled=%s", a.id, a.name, a.enabled)
         if not any(x.id == a.id for x in self.accounts):
             self.accounts.append(a)
         self.pool.add(a)
@@ -118,6 +122,7 @@ class Supervisor:
             guard.bind(a.process_id)
 
     def remove_account(self, account_id):
+        self.logger.info("account removal requested id=%s", account_id)
         a = self.get_account(account_id)
         if a is None:
             raise KeyError(account_id)
@@ -180,9 +185,11 @@ class Supervisor:
         return True
 
     def create_batch(self, batch_id, account_ids, mode="manual", target_xp=None, repeat=False, max_matches=None):
+        self.logger.info("batch create id=%s mode=%s accounts=%d", batch_id, mode, len(account_ids))
         result=self.farm.create_batch(batch_id, list(account_ids), mode=mode, target_xp=target_xp, repeat=repeat, max_matches=max_matches); self._save_farm(); return result
 
     def start_batch(self, batch_id):
+        self.logger.info("batch start id=%s", batch_id)
         batch = self.farm.start_batch(batch_id)
         # Establish the farm baseline before any process can emit a GSI event.
         # Otherwise the GSI callback may race with startup and its first XP value
@@ -221,6 +228,7 @@ class Supervisor:
         return batch
 
     def stop_batch(self, batch_id):
+        self.logger.info("batch stop id=%s", batch_id)
         batch = self.farm.stop_batch(batch_id)
         for account_id in batch.account_ids:
             try:
@@ -240,6 +248,7 @@ class Supervisor:
         result=self.farm.match_found(batch_id, match_id); self._save_farm(); return result
 
     def recover_batch(self, batch_id):
+        self.logger.warning("batch recovery requested id=%s", batch_id)
         batch = self.farm.recover_farming_batch(batch_id)
         runtime = self.orchestrator.runtime.setdefault(batch.id, BatchRuntime(batch.id))
         runtime.recovery_claimed = True
@@ -299,6 +308,7 @@ class Supervisor:
         return path
 
     def emergency_stop(self):
+        self.logger.critical("EMERGENCY STOP ALL")
         self.kill_switch = True
         for batch in list(self.farm.batches.values()):
             if batch.state not in (BatchState.FINISHED, BatchState.STOPPING, BatchState.IDLE):
@@ -315,9 +325,11 @@ class Supervisor:
         self._save_farm()
 
     def clear_kill_switch(self):
+        self.logger.warning("KILL SWITCH cleared")
         self.kill_switch = False
 
     def start_account(self, account_id):
+        self.logger.info("account start requested id=%s", account_id)
         if self.kill_switch:
             raise RuntimeError("global kill switch is active")
         a = self.get_account(account_id)
@@ -343,6 +355,7 @@ class Supervisor:
                 guard.bind(a.process_id)
             return a.process_id
         except Exception as e:
+            self.logger.exception("account start failed id=%s", account_id)
             self.resources.stop_account(a.id)
             a.errors.append(str(e))
             if a.fsm.state != AccountState.ERROR:
@@ -352,6 +365,7 @@ class Supervisor:
             raise
 
     def stop_account(self, account_id):
+        self.logger.info("account stop requested id=%s", account_id)
         a = self.get_account(account_id)
         if not a:
             raise KeyError(account_id)
@@ -394,6 +408,7 @@ class Supervisor:
                 a.errors.append("watchdog restart limit reached")
 
     async def run(self):
+        self.logger.info("supervisor run loop starting")
         self.running = True
         self.gsi.on_snapshot(self.on_gsi)
         self.gsi.start()
@@ -453,10 +468,15 @@ class Supervisor:
                         a.walkbot.emergency_stop()
                         a.errors.append(f"WalkBot tick failed: {exc}")
                 await asyncio.sleep(delay)
+        except Exception:
+            self.logger.exception("supervisor run loop crashed")
+            raise
         finally:
+            self.logger.info("supervisor run loop stopping")
             self.gsi.stop()
 
     def stop(self):
+        self.logger.info("supervisor shutdown requested")
         self.running = False
         # Persist the post-shutdown state, never a pre-shutdown FARMING snapshot.
         for batch in list(self.farm.batches.values()):
