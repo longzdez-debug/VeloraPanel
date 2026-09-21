@@ -9,6 +9,7 @@ from .movement import Navigator
 from .world import WorldModel
 from .gsi_normalizer import GsiNormalizer
 from .replay import ReplaySession
+from .navigation import NavGraph, NavigationGoal
 
 @dataclass(frozen=True)
 class Waypoint:
@@ -31,7 +32,7 @@ class InputAdapter:
  def move(self,forward,back,left,right): pass
 
 class WalkBot:
- def __init__(self,input_adapter,config=None,replan:Callable[[tuple[float,float,float]],bool]|None=None,replay:ReplaySession|None=None):
+ def __init__(self,input_adapter,config=None,replan:Callable[[tuple[float,float,float]],bool]|None=None,replay:ReplaySession|None=None,nav_graph:NavGraph|None=None):
   self.input=input_adapter;self.cfg=config or WalkConfig();self.replan=replan
   self.fsm=StateMachine(WalkState.DISABLED);self._configure()
   self.path:list[Waypoint]=[];self.index=0
@@ -45,6 +46,8 @@ class WalkBot:
   self.last_tick=None
   self.last_command=None
   self.recovery_reason=None
+  self.nav_graph=nav_graph
+  self.navigation_goal:NavigationGoal|None=None
 
  def _configure(self):
   s=WalkState
@@ -76,36 +79,40 @@ class WalkBot:
   self.path=list(path);self.index=0;self.recoveries=0
   self.progress_position=None;self.last_progress=monotonic();self.recovery_reason=None
 
- def telemetry(self):
-  now=monotonic()
+ def plan_to(self,goal:NavigationGoal):
+  self.navigation_goal=goal
+  if self.nav_graph is None or goal.target_area is None:
+   return False
   position=self.last_position
-  target=self.path[self.index] if self.path and 0 <= self.index < len(self.path) else None
-  distance=None
-  if position is not None and target is not None:
-   distance=hypot(target.x-position[0],target.y-position[1])
+  if position is None:
+   return False
+  start=self.nav_graph.nearest(position,self.cfg.arrive_radius*10)
+  if start is None:
+   return False
+  areas=self.nav_graph.astar(start.id,goal.target_area)
+  if not areas:
+   return False
+  self.set_path([Waypoint(a,self.nav_graph.areas[a].center[0],self.nav_graph.areas[a].center[1],self.nav_graph.areas[a].center[2]) for a in areas])
+  return True
+
+ def telemetry(self):
+  now=monotonic();position=self.last_position
+  target=self.path[self.index] if self.path and 0<=self.index<len(self.path) else None
+  distance=None if position is None or target is None else hypot(target.x-position[0],target.y-position[1])
   age=None if self.last_gsi is None else max(0.0,now-self.last_gsi)
   progress_age=max(0.0,now-self.last_progress) if self.progress_position is not None else None
-  return {
-   "state":getattr(self.fsm.state,"value",str(self.fsm.state)),
-   "enabled":bool(self.enabled),
-   "position":list(position) if position is not None else None,
-   "target_node":target.id if target is not None else None,
-   "target_position":[target.x,target.y,target.z] if target is not None else None,
-   "path_index":self.index,
-   "path_length":len(self.path),
+  return {"state":getattr(self.fsm.state,"value",str(self.fsm.state)),"enabled":bool(self.enabled),
+   "position":list(position) if position is not None else None,"target_node":target.id if target else None,
+   "target_position":[target.x,target.y,target.z] if target else None,"path_index":self.index,"path_length":len(self.path),
    "progress_percent":round((self.index/max(1,len(self.path)-1))*100,1) if self.path else 0.0,
-   "distance_to_target":round(distance,2) if distance is not None else None,
-   "stuck_count":self.recoveries,
-   "max_recoveries":self.cfg.max_recoveries,
-   "recovery_active":self.fsm.state==WalkState.RECOVERING,
-   "recovery_reason":self.recovery_reason,
-   "last_gsi_age":round(age,3) if age is not None else None,
+   "distance_to_target":round(distance,2) if distance is not None else None,"stuck_count":self.recoveries,
+   "max_recoveries":self.cfg.max_recoveries,"recovery_active":self.fsm.state==WalkState.RECOVERING,
+   "recovery_reason":self.recovery_reason,"last_gsi_age":round(age,3) if age is not None else None,
    "last_progress_age":round(progress_age,3) if progress_age is not None else None,
    "last_tick_age":None if self.last_tick is None else round(max(0.0,now-self.last_tick),3),
-   "last_command":self.last_command,
-   "position_confidence":self.world.snapshot().localization.position.confidence,
+   "last_command":self.last_command,"position_confidence":self.world.snapshot().localization.position.confidence,
    "localization_status":self.world.snapshot().localization.status,
-  }
+   "navigation_goal":self.navigation_goal.target_area if self.navigation_goal else None}
 
  def replan_from_position(self,position):
   if self.replan is None:return False
@@ -114,37 +121,31 @@ class WalkBot:
    if self.fsm.state==WalkState.NAVIGATING:self.fsm.dispatch("stuck")
    if self.fsm.state==WalkState.STUCK:self.fsm.dispatch("recover")
    ok=bool(self.replan(position))
-   if ok:
-    self.fsm.dispatch("replan");self.fsm.dispatch("planned")
-    self.progress_position=position;self.last_progress=monotonic()
-   else:
-    self.stop()
+   if ok:self.fsm.dispatch("replan");self.fsm.dispatch("planned");self.progress_position=position;self.last_progress=monotonic()
+   else:self.stop()
    return ok
   except Exception:
-   self.stop()
-   return False
+   self.stop();return False
 
  def on_gsi(self,snap:GsiSnapshot):
   self.gsi_normalizer.publish(snap,self.world)
-  if self.replay is not None:
-   self.replay.record("WalkBot.GsiUpdated",snap.received_at,{"map":snap.map_name,"activity":snap.activity,"health":snap.health,"position":list(snap.position) if snap.position else None})
-  self.last_gsi=monotonic();self.last_position=snap.position or self.last_position
-  self.last_forward=snap.forward or self.last_forward
-  activity=(snap.activity or "").lower()
-  phase=(snap.round_phase or snap.map_phase or "").lower()
+  if self.replay:self.replay.record("WalkBot.GsiUpdated",snap.received_at,{"map":snap.map_name,"activity":snap.activity,"health":snap.health,"position":list(snap.position) if snap.position else None})
+  self.last_gsi=monotonic();self.last_position=snap.position or self.last_position;self.last_forward=snap.forward or self.last_forward
+  activity=(snap.activity or "").lower();phase=(snap.round_phase or snap.map_phase or "").lower()
   live=activity in {"playing","live"} and phase in {"live","playing","freezetime","halftime","intermission"}
   if not live or (snap.health is not None and snap.health<=0):
    self.input.release_all()
    if activity in {"menu","mainmenu"} or phase in {"menu","mainmenu","postgame","gameover","game_over"}:
-    if self.fsm.state not in (WalkState.DISABLED,WalkState.INITIALIZING,WalkState.WAITING_FOR_GAME): self.fsm.dispatch("reset_game")
+    if self.fsm.state not in (WalkState.DISABLED,WalkState.INITIALIZING,WalkState.WAITING_FOR_GAME):self.fsm.dispatch("reset_game")
    return
   if self.fsm.state==WalkState.INITIALIZING:self.fsm.dispatch("ready")
   if self.fsm.state==WalkState.WAITING_FOR_GAME:self.fsm.dispatch("live")
   if self.fsm.state==WalkState.WAITING_FOR_SPAWN and (snap.health or 0)>0:self.fsm.dispatch("spawn")
+
  def _recovery_tick(self,now):
   if now>=self.recovery_until:
    self.input.release_all()
-   if self.last_position is not None and self.replan and self.replan_from_position(self.last_position): return
+   if self.last_position is not None and self.replan and self.replan_from_position(self.last_position):return
    if self.recoveries>=self.cfg.max_recoveries:self.stop();return
    self.fsm.dispatch("retry");self.last_progress=now;return
   elapsed=now-self.recovery_started
@@ -152,35 +153,25 @@ class WalkBot:
   else:self.input.move(True,False,False,True)
 
  def tick(self,position=None):
-  now=monotonic()
-  self.last_tick=now
-  if not self.enabled or self.last_gsi is None or now-self.last_gsi>self.cfg.gsi_timeout:
-   self.input.release_all();return
-  if self.fsm.state==WalkState.RECOVERING:
-   self._recovery_tick(now);return
+  now=monotonic();self.last_tick=now
+  if not self.enabled or self.last_gsi is None or now-self.last_gsi>self.cfg.gsi_timeout:self.input.release_all();return
+  if self.fsm.state==WalkState.RECOVERING:self._recovery_tick(now);return
   if self.fsm.state not in (WalkState.NAVIGATING,WalkState.ARRIVING) or not self.path:return
   position=position or self.last_position
   if position is None:return
-  self.last_position=position
-  target=self.path[self.index];d=hypot(target.x-position[0],target.y-position[1])
+  self.last_position=position;target=self.path[self.index];d=hypot(target.x-position[0],target.y-position[1])
   if d<=self.cfg.arrive_radius:
    self.input.release_all()
-   if self.index+1<len(self.path):
-    self.index+=1;self.fsm.dispatch("arrive");self.fsm.dispatch("wait");self.fsm.dispatch("next")
+   if self.index+1<len(self.path):self.index+=1;self.fsm.dispatch("arrive");self.fsm.dispatch("wait");self.fsm.dispatch("next")
    else:self.fsm.dispatch("arrive")
    self.progress_position=position;self.last_progress=now;return
   if self.progress_position is None:self.progress_position=position;self.last_progress=now
-  elif hypot(position[0]-self.progress_position[0],position[1]-self.progress_position[1])>2:
-   self.progress_position=position;self.last_progress=now;self.recoveries=0
+  elif hypot(position[0]-self.progress_position[0],position[1]-self.progress_position[1])>2:self.progress_position=position;self.last_progress=now;self.recoveries=0
   if now-self.last_progress>=self.cfg.stuck_seconds:
-   self.input.release_all()
-   self.recoveries+=1
-   self.recovery_reason="stuck"
+   self.input.release_all();self.recoveries+=1;self.recovery_reason="stuck"
    if self.recoveries>self.cfg.max_recoveries:self.stop();return
-   self.fsm.dispatch("stuck");self.fsm.dispatch("recover")
-   self.recovery_started=now;self.recovery_until=now+self.cfg.recovery_seconds;return
+   self.fsm.dispatch("stuck");self.fsm.dispatch("recover");self.recovery_started=now;self.recovery_until=now+self.cfg.recovery_seconds;return
   c=self.navigator.command(position,(target.x,target.y),self.last_forward)
   self.last_command={"forward":bool(c.forward),"back":bool(c.back),"left":bool(c.left),"right":bool(c.right)}
   self.input.move(c.forward,c.back,c.left,c.right)
-  if self.replay is not None:
-   self.replay.record("WalkBot.MovementCommand",now,{"forward":bool(c.forward),"back":bool(c.back),"left":bool(c.left),"right":bool(c.right)})
+  if self.replay:self.replay.record("WalkBot.MovementCommand",now,{"forward":bool(c.forward),"back":bool(c.back),"left":bool(c.left),"right":bool(c.right)})
