@@ -15,10 +15,11 @@ class ObservationValue(Generic[T]):
     valid: bool = True
 
     def fresh(self, now: float | None = None, max_age: float = 3.0) -> bool:
-        if not self.valid:
+        if not self.valid or self.value is None:
             return False
         current = monotonic() if now is None else now
-        return current - self.timestamp <= max(0.0, max_age)
+        age = current - self.timestamp
+        return 0.0 <= age <= max(0.0, max_age)
 
 @dataclass(frozen=True)
 class GameState:
@@ -140,6 +141,3 @@ class WorldModel:
             self._snapshot = replace(self._snapshot, navigation=replace(self._snapshot.navigation, **changes), updated_at=monotonic())
             return self._snapshot
 
-
-# Observation freshness is evaluated against the caller's clock so replay and
-# deterministic tests can reason about sensor validity without mutating state.
