@@ -17,3 +17,23 @@ def test_stats_snapshot_roundtrip():
     assert stats.matches == 1
     assert stats.losses == 1
     assert stats.xp == 50
+
+
+def test_unknown_match_result_does_not_become_loss():
+    store = StatsStore()
+    store.record_match("a", xp_delta=125, win=None)
+    stats = store.get("a")
+    assert stats.matches == 1
+    assert stats.xp == 125
+    assert stats.wins == 0
+    assert stats.losses == 0
+
+
+def test_explicit_match_result_updates_win_loss():
+    store = StatsStore()
+    store.record_match("a", xp_delta=50, win=True)
+    store.record_match("a", xp_delta=25, win=False)
+    stats = store.get("a")
+    assert stats.xp == 75
+    assert stats.wins == 1
+    assert stats.losses == 1
