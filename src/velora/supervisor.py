@@ -15,7 +15,7 @@ from .farm import BatchState, FarmManager
 from .resource import ResourceBudget, ResourceManager
 from .lobby import LobbyManager
 from .stats import StatsStore
-from .orchestrator import FarmOrchestrator
+from .orchestrator import BatchRuntime, FarmOrchestrator
 
 @dataclass
 class Supervisor:
@@ -231,7 +231,7 @@ class Supervisor:
 
     def recover_batch(self, batch_id):
         batch = self.farm.recover_farming_batch(batch_id)
-        runtime = self.orchestrator.runtime.setdefault(batch.id, __import__("velora.orchestrator", fromlist=["BatchRuntime"]).BatchRuntime(batch.id))
+        runtime = self.orchestrator.runtime.setdefault(batch.id, BatchRuntime(batch.id))
         runtime.recovery_claimed = True
         started = []
         try:
