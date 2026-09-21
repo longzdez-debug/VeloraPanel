@@ -52,6 +52,7 @@ class WalkBot:
   self.recovery_reason=None
   self.nav_graph=nav_graph
   self.navigation_goal:NavigationGoal|None=None
+  self.last_decision=None
 
  def _configure(self):
   s=WalkState
@@ -118,7 +119,10 @@ class WalkBot:
    "last_tick_age":None if self.last_tick is None else round(max(0.0,now-self.last_tick),3),
    "last_command":self.last_command,"position_confidence":self.world.snapshot().localization.position.confidence,
    "localization_status":self.world.snapshot().localization.status,
-   "navigation_goal":self.navigation_goal.target_area if self.navigation_goal else None}
+   "navigation_goal":self.navigation_goal.target_area if self.navigation_goal else None,
+   "decision_action":None if self.last_decision is None else self.last_decision.action,
+   "decision_reason":None if self.last_decision is None else self.last_decision.reason,
+   "decision_confidence":None if self.last_decision is None else round(self.last_decision.confidence,3)}
 
  def replan_from_position(self,position):
   if self.replan is None:return False
@@ -183,6 +187,7 @@ class WalkBot:
    self.fsm.dispatch("stuck");self.fsm.dispatch("recover");self.recovery_started=now;self.recovery_until=now+self.cfg.recovery_seconds;return
   decision_goal=self.navigation_goal or NavigationGoal("waypoint", target_position=(target.x,target.y,target.z), reason="path_waypoint")
   decision=self.decision_engine.decide(self.world.snapshot(), decision_goal)
+  self.last_decision=decision
   if decision.action != "move_to_target":
    self.movement_controller.stop()
    self.last_command={"forward":False,"back":False,"left":False,"right":False}
