@@ -1,10 +1,13 @@
 from __future__ import annotations
+
 from dataclasses import dataclass
 from pathlib import Path
 import subprocess
 import time
+
 from .process import ProcessIdentity, ProcessSupervisor
 from .steam import APP_ID, find_cs2, find_steam
+
 
 @dataclass(frozen=True)
 class LaunchResult:
@@ -12,9 +15,11 @@ class LaunchResult:
     executable: str
     via_steam: bool = False
 
+
 class Cs2Launcher:
-    def __init__(self, processes=None):
+    def __init__(self, processes=None, startup_timeout: float = 30.0):
         self.processes = processes or ProcessSupervisor()
+        self.startup_timeout = max(5.0, float(startup_timeout))
 
     def resolve(self, configured=""):
         if configured:
@@ -31,10 +36,12 @@ class Cs2Launcher:
             steam = find_steam()
             if not steam:
                 raise FileNotFoundError("Steam executable was not found")
-            # Start the game through Steam's documented app launch path.
-            p = subprocess.Popen([str(steam / "steam.exe"), "-applaunch", str(APP_ID), *args],
-                                 cwd=str(steam), close_fds=True)
-            deadline = time.monotonic() + 30.0
+            subprocess.Popen(
+                [str(steam / "steam.exe"), "-applaunch", str(APP_ID), *args],
+                cwd=str(steam),
+                close_fds=True,
+            )
+            deadline = time.monotonic() + self.startup_timeout
             while time.monotonic() < deadline:
                 try:
                     ident = self.processes.find_and_claim(str(exe))
