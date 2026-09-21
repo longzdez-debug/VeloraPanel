@@ -36,6 +36,9 @@ class WalkBot:
   self.progress_position=None;self.last_progress=monotonic();self.recoveries=0
   self.recovery_until=0.0;self.recovery_started=0.0
   self.navigator=Navigator();self.enabled=True
+  self.last_tick=None
+  self.last_command=None
+  self.recovery_reason=None
 
  def _configure(self):
   s=WalkState
@@ -65,7 +68,36 @@ class WalkBot:
 
  def set_path(self,path):
   self.path=list(path);self.index=0;self.recoveries=0
-  self.progress_position=None;self.last_progress=monotonic()
+  self.progress_position=None;self.last_progress=monotonic();self.recovery_reason=None
+
+ def telemetry(self):
+  now=monotonic()
+  position=self.last_position
+  target=self.path[self.index] if self.path and 0 <= self.index < len(self.path) else None
+  distance=None
+  if position is not None and target is not None:
+   distance=hypot(target.x-position[0],target.y-position[1])
+  age=None if self.last_gsi is None else max(0.0,now-self.last_gsi)
+  progress_age=max(0.0,now-self.last_progress) if self.progress_position is not None else None
+  return {
+   "state":getattr(self.fsm.state,"value",str(self.fsm.state)),
+   "enabled":bool(self.enabled),
+   "position":list(position) if position is not None else None,
+   "target_node":target.id if target is not None else None,
+   "target_position":[target.x,target.y,target.z] if target is not None else None,
+   "path_index":self.index,
+   "path_length":len(self.path),
+   "progress_percent":round((self.index/max(1,len(self.path)-1))*100,1) if self.path else 0.0,
+   "distance_to_target":round(distance,2) if distance is not None else None,
+   "stuck_count":self.recoveries,
+   "max_recoveries":self.cfg.max_recoveries,
+   "recovery_active":self.fsm.state==WalkState.RECOVERING,
+   "recovery_reason":self.recovery_reason,
+   "last_gsi_age":round(age,3) if age is not None else None,
+   "last_progress_age":round(progress_age,3) if progress_age is not None else None,
+   "last_tick_age":None if self.last_tick is None else round(max(0.0,now-self.last_tick),3),
+   "last_command":self.last_command,
+  }
 
  def replan_from_position(self,position):
   if self.replan is None:return False
@@ -110,6 +142,7 @@ class WalkBot:
 
  def tick(self,position=None):
   now=monotonic()
+  self.last_tick=now
   if not self.enabled or self.last_gsi is None or now-self.last_gsi>self.cfg.gsi_timeout:
    self.input.release_all();return
   if self.fsm.state==WalkState.RECOVERING:
@@ -131,8 +164,10 @@ class WalkBot:
   if now-self.last_progress>=self.cfg.stuck_seconds:
    self.input.release_all()
    self.recoveries+=1
+   self.recovery_reason="stuck"
    if self.recoveries>self.cfg.max_recoveries:self.stop();return
    self.fsm.dispatch("stuck");self.fsm.dispatch("recover")
    self.recovery_started=now;self.recovery_until=now+self.cfg.recovery_seconds;return
   c=self.navigator.command(position,(target.x,target.y),self.last_forward)
+  self.last_command={"forward":bool(c.forward),"back":bool(c.back),"left":bool(c.left),"right":bool(c.right)}
   self.input.move(c.forward,c.back,c.left,c.right)
