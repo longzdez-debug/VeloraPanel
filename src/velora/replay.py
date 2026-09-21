@@ -31,6 +31,12 @@ class ReplaySession:
             json.dump(self.to_dict(), handle, ensure_ascii=False, indent=2)
 
     @classmethod
+    def from_dict(cls, data: dict):
+        session = cls(str(data.get("session_id") or "replay"), max_events=max(1, len(data.get("events", []))))
+        session.events = [ReplayEvent(float(x["timestamp"]), str(x["kind"]), dict(x.get("payload", {})), str(x.get("correlation_id", ""))) for x in data.get("events", [])]
+        return session
+
+    @classmethod
     def load(cls, path: str):
         with open(path, encoding="utf-8") as handle:
             data = json.load(handle)
