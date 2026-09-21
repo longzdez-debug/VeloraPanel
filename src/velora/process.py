@@ -34,14 +34,25 @@ class ProcessSupervisor:
         except (psutil.Error, OSError):
             return None
 
-    def find_and_claim(self, executable: str) -> ProcessIdentity | None:
+    def find_and_claim(self, executable: str, not_before: float | None = None) -> ProcessIdentity | None:
         expected = os.path.abspath(executable)
-        for p in psutil.process_iter(["pid", "exe"]):
+        candidates = []
+        for p in psutil.process_iter(["pid", "exe", "create_time"]):
             try:
-                if p.info["exe"] and os.path.abspath(p.info["exe"]) == expected:
-                    return self.claim(p.pid, expected)
-            except (psutil.Error, OSError):
+                if p.pid in self.owned:
+                    continue
+                if not p.info["exe"] or os.path.abspath(p.info["exe"]) != expected:
+                    continue
+                created = float(p.info.get("create_time") or 0.0)
+                if not_before is not None and created < not_before:
+                    continue
+                candidates.append((created, p.pid))
+            except (psutil.Error, OSError, TypeError, ValueError):
                 continue
+        for _, pid in sorted(candidates, reverse=True):
+            ident = self.claim(pid, expected)
+            if ident is not None:
+                return ident
         return None
 
     def is_owned(self, pid):
@@ -55,7 +66,12 @@ class ProcessSupervisor:
             return False
 
     def alive(self, pid):
-        return self.is_owned(pid) and psutil.Process(pid).is_running()
+        if not self.is_owned(pid):
+            return False
+        try:
+            return psutil.Process(pid).is_running()
+        except (psutil.Error, OSError):
+            return False
 
     def terminate(self, pid, timeout=5):
         if not self.is_owned(pid):
