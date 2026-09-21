@@ -27,7 +27,7 @@ class GsiServer:
      self.send_response(401);self.end_headers();return
     provider=data.get("provider") or {};m=data.get("map") or {};r=data.get("round") or {};p=data.get("player") or {};st=p.get("state") or {}
     position=_vec(p.get("position") or st.get("position"))
-    forward=_vec(p.get("forward") or p.get("forward_direction") or data.get("player_position"))
+    forward=_vec(p.get("forward") or p.get("forward_direction"))
     ts=provider.get("timestamp")
     key=(ts,hashlib.sha256(body).hexdigest())
     if key==outer._last_key:self.send_response(204);self.end_headers();return
