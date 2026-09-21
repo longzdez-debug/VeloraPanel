@@ -41,6 +41,7 @@ class Supervisor:
         self.runtime_store = JsonStore(f"{self.config.data_dir}/runtime.json")
         self.orchestrator = FarmOrchestrator(self)
         self.scheduler.load_snapshot(self.runtime_store.load("scheduler", []))
+        self.orchestrator.load_snapshot(self.runtime_store.load("orchestrator", []))
         self.kill_switch = False
         self.window_guards = {}
 
