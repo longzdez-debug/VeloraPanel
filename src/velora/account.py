@@ -1,6 +1,7 @@
 from dataclasses import dataclass,field
 from .fsm import StateMachine
-from .model import AccountState,GsiSnapshot
+from .model import AccountState,GsiSnapshot,MatchState
+from .rounds import MatchTracker,RoundState
 
 @dataclass
 class Account:
@@ -18,7 +19,7 @@ class Account:
  route_start:str|None=None
  route_goal:str|None=None
  def __post_init__(self):
-  self.fsm=StateMachine(AccountState.OFFLINE);s=AccountState
+  self.fsm=StateMachine(AccountState.OFFLINE);self.match=MatchTracker();s=AccountState
   for a,e,b in [(s.OFFLINE,"start",s.STARTING),(s.STARTING,"ready",s.MENU),
    (s.MENU,"queue",s.QUEUING),(s.QUEUING,"match",s.IN_MATCH),
    (s.IN_MATCH,"stop",s.STOPPING),(s.ERROR,"reset",s.OFFLINE),
@@ -32,13 +33,18 @@ class Account:
  def on_gsi(self,snap:GsiSnapshot):
   if self.steam_id and snap.steam_id and snap.steam_id!=self.steam_id:return
   self.last_gsi=snap.received_at
+  previous=self.match.state
+  state=self.match.update(snap.map_name,snap.round_phase,snap.round_number)
   if self.fsm.state==AccountState.STARTING:self.on_ready()
-  if snap.activity=="playing":
-   if self.fsm.state==AccountState.MENU:self.fsm.dispatch("queue")
-   if self.fsm.state==AccountState.QUEUING:self.fsm.dispatch("match")
+  if snap.activity=="playing" and self.fsm.state==AccountState.MENU:self.fsm.dispatch("queue")
+  if snap.activity=="playing" and self.fsm.state==AccountState.QUEUING:self.fsm.dispatch("match")
+  if state==RoundState.OVER and previous==RoundState.LIVE:self.walkbot.input.release_all()
   self.walkbot.on_gsi(snap)
+ def match_state(self)->MatchState:
+  if self.match.state==RoundState.LIVE:return MatchState.LIVE
+  if self.match.state==RoundState.OVER:return MatchState.ROUND_OVER
+  return MatchState.WAITING if self.match.map_name else MatchState.UNKNOWN
  def stop(self):
   self.walkbot.stop()
-  if self.fsm.state not in (AccountState.OFFLINE,AccountState.STOPPING):
-   self.fsm.dispatch("stop")
+  if self.fsm.state not in (AccountState.OFFLINE,AccountState.STOPPING):self.fsm.dispatch("stop")
   if self.fsm.state==AccountState.STOPPING:self.fsm.dispatch("reset")
