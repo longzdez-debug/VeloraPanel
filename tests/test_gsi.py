@@ -158,3 +158,13 @@ def test_gsi_health_reports_recent_packet_as_connected():
     assert health["connected"] is True
     assert health["stale"] is False
     assert health["packet_count"] == 4
+
+
+def test_gsi_normalizer_uses_receive_time_for_freshness():
+    from velora.gsi_normalizer import GsiNormalizer
+    from velora.model import GsiSnapshot
+    snap = GsiSnapshot(999999999.0, activity="playing", health=100, map_name="de_dust2", position=(1,2,3))
+    normalized = GsiNormalizer().normalize(snap)
+    assert normalized.received_at == snap.received_at
+    assert normalized.player.position.timestamp == snap.received_at
+    assert normalized.player.position.source == "gsi"
