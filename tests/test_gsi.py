@@ -105,3 +105,31 @@ def test_gsi_extracts_explicit_team_result_data():
         assert seen[0].opponent_score == 12
     finally:
         server.stop()
+
+
+def test_gsi_does_not_invent_result_without_final_score():
+    import socket
+    from http.client import HTTPConnection
+    seen = []
+    server = GsiServer(host="127.0.0.1", port=0)
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        port = sock.getsockname()[1]
+    server.port = port
+    server.on_snapshot(seen.append)
+    server.start()
+    try:
+        body = json.dumps({
+            "provider": {"timestamp": 9},
+            "map": {"name": "de_dust2", "phase": "gameover", "round": 30},
+            "round": {"phase": "gameover"},
+            "player": {"steamid": "1", "team": "CT", "activity": "playing", "state": {"health": 0}},
+        }).encode()
+        conn = HTTPConnection("127.0.0.1", port, timeout=2)
+        conn.request("POST", "/", body=body)
+        assert conn.getresponse().status == 204
+        conn.close()
+        assert seen[0].team_score is None
+        assert seen[0].opponent_score is None
+    finally:
+        server.stop()
