@@ -21,6 +21,7 @@ def main():
 
     sup = Supervisor(c)
     store = AccountStore(os.path.join(c.data_dir, "accounts.json"))
+    sup.attach_account_store(store)
     profiles = store.load()
     if not profiles:
         profiles = [type("P", (), {
