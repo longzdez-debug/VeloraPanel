@@ -32,6 +32,7 @@ class Cs2Launcher:
             steam = find_steam()
             if not steam:
                 raise FileNotFoundError("Steam executable was not found")
+            launch_started = time.time() - 1.0
             subprocess.Popen(
                 [str(steam / "steam.exe"), "-applaunch", str(APP_ID), *args],
                 cwd=str(steam),
@@ -40,7 +41,7 @@ class Cs2Launcher:
             deadline = time.monotonic() + self.startup_timeout
             while time.monotonic() < deadline:
                 try:
-                    ident = self.processes.find_and_claim(str(exe))
+                    ident = self.processes.find_and_claim(str(exe), not_before=launch_started)
                     if ident is not None:
                         return LaunchResult(ident, str(exe), True)
                 except OSError:
