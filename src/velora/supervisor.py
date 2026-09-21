@@ -42,6 +42,15 @@ class Supervisor:
         self.orchestrator = FarmOrchestrator(self)
         self.scheduler.load_snapshot(self.runtime_store.load("scheduler", []))
         self.orchestrator.load_snapshot(self.runtime_store.load("orchestrator", []))
+        # A FARMING batch is recoverable only when its persisted runtime still
+        # contains the active match identity. If the two durable snapshots got
+        # out of sync (for example, a crash between atomic saves), fail closed
+        # instead of leaving the batch permanently stuck in FARMING.
+        for batch in self.farm.batches.values():
+            runtime = self.orchestrator.runtime.get(batch.id)
+            if batch.state.value == "farming" and (runtime is None or runtime.match_key is None):
+                batch.state = type(batch.state).ERROR
+                batch.errors.append("recovery required: active match runtime is missing")
         self.kill_switch = False
         self.window_guards = {}
 
