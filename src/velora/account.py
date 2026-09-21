@@ -27,6 +27,7 @@ class Account:
     last_score: int | None = None
     last_opponent_score: int | None = None
     match_rounds: int = 0
+    match_terminal_latched: bool = False
 
     def __post_init__(self):
         self.fsm = StateMachine(AccountState.OFFLINE)
@@ -100,6 +101,17 @@ class Account:
             self.last_opponent_score = snap.opponent_score
             self.last_match_result = snap.team_score > snap.opponent_score
         self.on_ready()
+
+        # A terminal GSI snapshot can be followed by a stale/live snapshot while
+        # CS2 is still unwinding the match. Do not let that snapshot re-enter the
+        # match state machine until the account has actually reached queue/menu.
+        if self.match_terminal_latched:
+            if self._is_menu(snap) or self._is_queue(snap):
+                self.match_terminal_latched = False
+            else:
+                self.walkbot.on_gsi(snap)
+                return
+
         previous = self.match.state
         match_phase = map_phase or round_phase
         if map_phase not in terminal_phases and round_phase in terminal_phases:
@@ -109,6 +121,7 @@ class Account:
 
         if self.match.state == RoundState.GAME_OVER and self.fsm.state == AccountState.IN_MATCH:
             self.fsm.dispatch("game_over")
+            self.match_terminal_latched = True
             self.walkbot.input.release_all()
 
         if self._is_queue(snap) and self.fsm.state == AccountState.MENU:
@@ -120,6 +133,7 @@ class Account:
                 self.fsm.dispatch("match")
         elif self._is_menu(snap) and self.fsm.state == AccountState.IN_MATCH:
             self.fsm.dispatch("game_over")
+            self.match_terminal_latched = True
             self.walkbot.input.release_all()
         elif previous == RoundState.LIVE and self.match.state == RoundState.OVER:
             if self.fsm.state == AccountState.IN_MATCH:
@@ -155,5 +169,6 @@ class Account:
         self.next_restart_at = 0.0
         if self.fsm.state not in (AccountState.OFFLINE, AccountState.STOPPING):
             self.fsm.dispatch("stop")
+        self.match_terminal_latched = False
         if self.fsm.state == AccountState.STOPPING:
             self.fsm.dispatch("reset")
