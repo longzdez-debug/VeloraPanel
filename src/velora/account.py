@@ -111,6 +111,10 @@ class Account:
         age = self.gsi_age(now)
         return age is None or age > timeout
 
+    @property
+    def match_identity(self):
+        return (self.match.match_id, self.match.map_name, self.match.round_number)
+
     def match_state(self) -> MatchState:
         return {
             RoundState.UNKNOWN: MatchState.UNKNOWN,
