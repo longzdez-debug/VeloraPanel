@@ -20,6 +20,11 @@ class GsiServer:
         self.last_received = None
         self._server = None
         self._on_snapshot = None
+        self.packet_count = 0
+        self.error_count = 0
+        self.last_snapshot = None
+        self.last_provider_timestamp = None
+        self.last_packet_size = 0
 
     def on_snapshot(self, callback):
         self._on_snapshot = callback
@@ -34,17 +39,21 @@ class GsiServer:
                         self.send_response(400); self.end_headers(); return
                     body = self.rfile.read(n)
                 except (ValueError, OSError):
+                    outer.error_count += 1
                     self.send_response(400); self.end_headers(); return
                 try:
                     data = json.loads(body)
                 except (json.JSONDecodeError, UnicodeDecodeError):
+                    outer.error_count += 1
                     self.send_response(400); self.end_headers(); return
                 if not isinstance(data, dict):
+                    outer.error_count += 1
                     self.send_response(400); self.end_headers(); return
 
                 auth = data.get("auth") or {}
                 supplied = auth.get("token", "") if isinstance(auth, dict) else ""
                 if outer.token and not hmac.compare_digest(str(supplied), outer.token):
+                    outer.error_count += 1
                     self.send_response(401); self.end_headers(); return
 
                 provider = data.get("provider") or {}
@@ -53,6 +62,7 @@ class GsiServer:
                 player = data.get("player") or {}
                 state = player.get("state") or {}
                 if not all(isinstance(x, dict) for x in (provider, map_data, round_data, player, state)):
+                    outer.error_count += 1
                     self.send_response(400); self.end_headers(); return
 
                 position = _vec(player.get("position") or state.get("position"))
@@ -63,6 +73,9 @@ class GsiServer:
                     self.send_response(204); self.end_headers(); return
                 outer._last_key = key
                 outer.last_received = time.monotonic()
+                outer.packet_count += 1
+                outer.last_provider_timestamp = ts
+                outer.last_packet_size = len(body)
                 rn = map_data.get("round")
                 try:
                     rn = int(rn) if rn is not None else None
@@ -115,6 +128,7 @@ class GsiServer:
                     opponent_score=opponent_score,
                     raw=data,
                 )
+                outer.last_snapshot = snap
                 if outer._on_snapshot:
                     try:
                         outer._on_snapshot(snap)
@@ -126,6 +140,25 @@ class GsiServer:
                 pass
         self._server = ThreadingHTTPServer((self.host, self.port), Handler)
         Thread(target=self._server.serve_forever, daemon=True).start()
+
+    def snapshot(self):
+        age = None if self.last_received is None else max(0.0, time.monotonic() - self.last_received)
+        return {
+            "connected": self.last_received is not None,
+            "stale": age is None or age > 3.0,
+            "last_received_age": None if age is None else round(age, 3),
+            "packet_count": self.packet_count,
+            "error_count": self.error_count,
+            "last_provider_timestamp": self.last_provider_timestamp,
+            "last_packet_size": self.last_packet_size,
+            "map_name": self.last_snapshot.map_name if self.last_snapshot else None,
+            "map_phase": self.last_snapshot.map_phase if self.last_snapshot else None,
+            "activity": self.last_snapshot.activity if self.last_snapshot else None,
+            "player_team": self.last_snapshot.player_team if self.last_snapshot else None,
+            "round_number": self.last_snapshot.round_number if self.last_snapshot else None,
+            "team_score": self.last_snapshot.team_score if self.last_snapshot else None,
+            "opponent_score": self.last_snapshot.opponent_score if self.last_snapshot else None,
+        }
 
     def stop(self):
         if self._server:
