@@ -65,6 +65,11 @@ class RouteDatabase:
         self.routes[entry.map_name].append(entry)
         return entry
 
+    def import_store(self, store, map_name: str, route_id: str = "default", weight: float = 1.0, tags=()):
+        """Load one persisted waypoint graph into the route metadata layer."""
+        graph = store.get(map_name)
+        return self.import_graph(map_name, graph, route_id=route_id, weight=weight, tags=tags)
+
     def fallback(self, route: RouteEntry) -> RouteEntry | None:
         if not route.recovery_route:
             return None
