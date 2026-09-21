@@ -31,10 +31,8 @@ if errorlevel 1 goto :error
 if errorlevel 1 goto :error
 
 echo [4/7] Running tests...
-".venv\Scripts\python.exe" -m pytest -vv -ra -o faulthandler_timeout=30 > "pytest-build.log" 2>&1
-set "TEST_EXIT=%ERRORLEVEL%"
-type "pytest-build.log"
-if not "%TEST_EXIT%"=="0" goto :tests_error
+powershell -NoProfile -ExecutionPolicy Bypass -Command "& { & \".venv\\Scripts\\python.exe\" -m pytest -vv -ra -o faulthandler_timeout=30 2>&1 | Tee-Object -FilePath \"pytest-build.log\"; exit $LASTEXITCODE }"
+if errorlevel 1 goto :tests_error
 
 echo [5/7] Installing PyInstaller...
 ".venv\Scripts\python.exe" -m pip install --upgrade pyinstaller
