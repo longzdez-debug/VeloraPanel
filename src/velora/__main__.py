@@ -32,6 +32,10 @@ def main():
         logger.info("diagnostic %s: %s - %s", check.name, check.ok, check.detail)
 
     logger.info("VELORA PANEL startup: python=%s pid=%s", os.sys.version.split()[0], os.getpid())
+    logger.info(
+        "WalkBot input: enabled=%s foreground_guard=%s mouse_turn_counts=%s",
+        c.input_enabled, c.input_require_foreground, c.mouse_turn_counts,
+    )
     sup = Supervisor(c)
     store = AccountStore(os.path.join(c.data_dir, "accounts.json"))
     sup.attach_account_store(store)
@@ -45,7 +49,11 @@ def main():
     for p in profiles:
         if c.input_enabled:
             guard = Cs2WindowGuard(sup.processes, c.input_require_foreground)
-            adapter = WindowsInput(enabled=True, guard=guard)
+            adapter = WindowsInput(
+                enabled=True,
+                guard=guard,
+                mouse_turn_counts=c.mouse_turn_counts,
+            )
             sup.bind_window_guard(p.id, guard)
         else:
             adapter = NullInput()
