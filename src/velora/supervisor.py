@@ -111,6 +111,9 @@ class Supervisor:
                 return False
             graph = self.route_store.get(a.route_map)
             self.route_database.import_graph(a.route_map, graph, route_id="default")
+            selected = self.route_database.select(a.route_map)
+            if selected is None:
+                return False
             path = graph.path_from_position(position, a.route_goal, max_snap_distance=1200)
             if not path:
                 return False
