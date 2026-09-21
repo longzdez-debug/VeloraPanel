@@ -10,6 +10,9 @@ from .model import AccountState
 from .routes import RouteStore
 from .storage import JsonStore
 from .scheduler import Job, Scheduler
+from .account_pool import AccountPool
+from .farm import FarmManager
+from .resource import ResourceBudget, ResourceManager
 
 @dataclass
 class Supervisor:
@@ -22,13 +25,17 @@ class Supervisor:
         self.processes = ProcessSupervisor()
         self.launcher = Cs2Launcher(self.processes, self.config.process_start_timeout)
         self.route_store = RouteStore(JsonStore(f"{self.config.data_dir}/routes.json"))
-        self.scheduler = Scheduler(max_concurrent=1)
+        self.pool = AccountPool()
+        self.resources = ResourceManager(ResourceBudget(max_accounts=getattr(self.config, "max_concurrent_accounts", 1), max_batches=getattr(self.config, "max_parallel_batches", 1)))
+        self.farm = FarmManager(self.pool, self.resources)
+        self.scheduler = Scheduler(max_concurrent=getattr(self.config, "max_concurrent_accounts", 1))
         self.kill_switch = False
         self.window_guards = {}
 
     def add_account(self, a):
         if not any(x.id == a.id for x in self.accounts):
             self.accounts.append(a)
+        self.pool.add(a)
         self._bind_walkbot(a)
         self.scheduler.add(Job(f"account:{a.id}", a.id, enabled=False))
 
@@ -108,6 +115,8 @@ class Supervisor:
             raise KeyError(account_id)
         if a.process_id and self.processes.alive(a.process_id):
             return a.process_id
+        if not self.resources.start_account(a.id):
+            raise RuntimeError("account resource capacity reached")
         a.start()
         try:
             r = self.launcher.start(a.executable, a.launch_args, via_steam=self.config.launch_via_steam)
@@ -119,6 +128,7 @@ class Supervisor:
                 guard.bind(a.process_id)
             return a.process_id
         except Exception as e:
+            self.resources.stop_account(a.id)
             a.errors.append(str(e))
             if a.fsm.state != AccountState.ERROR:
                 a.fsm.dispatch("error")
@@ -132,6 +142,7 @@ class Supervisor:
         if a.process_id:
             self.processes.terminate(a.process_id)
             a.process_id = None
+        self.resources.stop_account(a.id)
         guard = self.window_guards.get(a.id)
         if guard is not None and hasattr(guard, "bind"):
             guard.bind(None)
@@ -147,6 +158,7 @@ class Supervisor:
                 pass
         a.process_id = None
         a.started_at = None
+        self.resources.stop_account(a.id)
         a.walkbot.emergency_stop()
         guard = self.window_guards.get(a.id)
         if guard is not None and hasattr(guard, "bind"):
@@ -214,6 +226,7 @@ class Supervisor:
             if a.process_id:
                 self.processes.terminate(a.process_id)
                 a.process_id = None
+            self.resources.stop_account(a.id)
             a.started_at = None
             guard = self.window_guards.get(a.id)
             if guard is not None and hasattr(guard, "bind"):
