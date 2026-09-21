@@ -45,6 +45,7 @@ class WalkBot:
    (s.NAVIGATING,"stuck",s.STUCK),(s.STUCK,"recover",s.RECOVERING),
    (s.RECOVERING,"replan",s.REPLANNING),(s.RECOVERING,"retry",s.NAVIGATING),
    (s.REPLANNING,"planned",s.NAVIGATING)]
+  for a in (s.WAITING_FOR_SPAWN,s.NAVIGATING,s.ARRIVING,s.WAITING,s.STUCK,s.RECOVERING,s.REPLANNING): self.fsm.allow(a,"reset_game",s.WAITING_FOR_GAME)
   for a,e,b in transitions:self.fsm.allow(a,e,b)
   for a in s:
    if a not in (s.DISABLED,s.STOPPING): self.fsm.allow(a,"stop",s.STOPPING)
@@ -86,11 +87,17 @@ class WalkBot:
  def on_gsi(self,snap:GsiSnapshot):
   self.last_gsi=monotonic();self.last_position=snap.position or self.last_position
   self.last_forward=snap.forward or self.last_forward
-  if (snap.round_phase or "").lower() not in {"live","playing"} or (snap.activity or "").lower() not in {"playing","live"} or (snap.health is not None and snap.health<=0):
-   self.input.release_all();return
+  activity=(snap.activity or "").lower()
+  phase=(snap.round_phase or snap.map_phase or "").lower()
+  live=activity in {"playing","live"} and phase in {"live","playing","freezetime","halftime","intermission"}
+  if not live or (snap.health is not None and snap.health<=0):
+   self.input.release_all()
+   if activity in {"menu","mainmenu"} or phase in {"menu","mainmenu","postgame","gameover","game_over"}:
+    if self.fsm.state not in (WalkState.DISABLED,WalkState.INITIALIZING,WalkState.WAITING_FOR_GAME): self.fsm.dispatch("reset_game")
+   return
+  if self.fsm.state==WalkState.INITIALIZING:self.fsm.dispatch("ready")
   if self.fsm.state==WalkState.WAITING_FOR_GAME:self.fsm.dispatch("live")
   if self.fsm.state==WalkState.WAITING_FOR_SPAWN and (snap.health or 0)>0:self.fsm.dispatch("spawn")
-
  def _recovery_tick(self,now):
   if now>=self.recovery_until:
    self.input.release_all()
