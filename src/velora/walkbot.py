@@ -81,6 +81,7 @@ class WalkBot:
 
  def set_path(self,path):
   self.path=list(path);self.index=0;self.recoveries=0
+  self.world.update_navigation(path=tuple(w.id for w in self.path), progress=0.0, target_area=self.path[-1].id if self.path else None)
   self.progress_position=None;self.last_progress=monotonic();self.recovery_reason=None
 
  def plan_to(self,goal:NavigationGoal):
@@ -97,6 +98,7 @@ class WalkBot:
   if not areas:
    return False
   self.set_path([Waypoint(a,self.nav_graph.areas[a].center[0],self.nav_graph.areas[a].center[1],self.nav_graph.areas[a].center[2]) for a in areas])
+  self.world.update_navigation(target_area=goal.target_area, path=tuple(areas), progress=0.0)
   return True
 
  def telemetry(self):
