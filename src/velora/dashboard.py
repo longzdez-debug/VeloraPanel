@@ -80,29 +80,17 @@ class Dashboard:
       else:return self._json({"error":"unknown action"},404)
       return self._json({"ok":True})
      if len(parts)==5 and parts[:2]==["api","routes"] and parts[3]=="nodes" and parts[4]=="delete":
-     if len(parts)==4 and parts[:2]==["api","routes"]:
-      map_name=parts[2];g=outer.s.route_store.get(map_name)
-      if parts[3]=="nodes":
-       d=self._body();g.add(Node(str(d["id"]),float(d["x"]),float(d["y"]),float(d.get("z",0))))
-      elif parts[3]=="edges":
-       d=self._body();g.connect(str(d["a"]),str(d["b"]))
-      elif parts[3]=="nodes" and False: pass
-      elif parts[3]=="save":outer.s.route_store.save(map_name,g);return self._json({"ok":True,"validation":g.validate()})
-      else:return self._json({"error":"unknown route action"},404)
-      return self._json(g.to_dict())
-     if len(parts)==4 and parts[:2]==["api","routes"]:
-     if len(parts)==4 and parts[:2]==["api","routes"]:
-      map_name=parts[2];g=outer.s.route_store.get(map_name)
-      if parts[3]=="nodes":
-       d=self._body();g.add(Node(str(d["id"]),float(d["x"]),float(d["y"]),float(d.get("z",0))))
-      elif parts[3]=="edges":
-       d=self._body();g.connect(str(d["a"]),str(d["b"]))
-      elif parts[3]=="nodes" and False: pass
-      elif parts[3]=="save":outer.s.route_store.save(map_name,g);return self._json({"ok":True,"validation":g.validate()})
-      else:return self._json({"error":"unknown route action"},404)
-      return self._json(g.to_dict())
-     if len(parts)==5 and parts[:2]==["api","routes"] and parts[3]=="nodes" and parts[4]=="delete":
       g=outer.s.route_store.get(parts[2]);g.remove(str(self._body()["id"]));return self._json(g.to_dict())
+     if len(parts)==4 and parts[:2]==["api","routes"]:
+      map_name=parts[2];g=outer.s.route_store.get(map_name)
+      if parts[3]=="nodes":
+       d=self._body();g.add(Node(str(d["id"]),float(d["x"]),float(d["y"]),float(d.get("z",0))))
+      elif parts[3]=="edges":
+       d=self._body();g.connect(str(d["a"]),str(d["b"]))
+      elif parts[3]=="save":
+       outer.s.route_store.save(map_name,g);return self._json({"ok":True,"validation":g.validate()})
+      else:return self._json({"error":"unknown route action"},404)
+      return self._json(g.to_dict())
      return self._json({"error":"not found"},404)
     except Exception as e:return self._json({"error":str(e)},400)
    def log_message(self,*args):pass
