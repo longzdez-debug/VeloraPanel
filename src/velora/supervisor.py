@@ -138,6 +138,8 @@ class Supervisor:
             if account is not None:
                 account.last_xp = None
                 account.last_match_result = None
+                account.last_score = None
+                account.last_opponent_score = None
         self._save_farm()
         return batch
 
