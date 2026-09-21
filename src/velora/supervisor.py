@@ -1,9 +1,7 @@
 from __future__ import annotations
-
 import asyncio
 from dataclasses import dataclass, field
 from time import monotonic
-
 from .config import Config
 from .gsi import GsiServer
 from .process import ProcessSupervisor
@@ -12,7 +10,6 @@ from .model import AccountState
 from .routes import RouteStore
 from .storage import JsonStore
 from .scheduler import Job, Scheduler
-
 
 @dataclass
 class Supervisor:
@@ -59,8 +56,7 @@ class Supervisor:
     def schedule_account(self, account_id, priority=0, cooldown=0.0):
         if not self.get_account(account_id):
             raise KeyError(account_id)
-        self.scheduler.add(Job(f"account:{account_id}", account_id, priority=priority,
-                               cooldown=cooldown, enabled=True))
+        self.scheduler.add(Job(f"account:{account_id}", account_id, priority=priority, cooldown=cooldown, enabled=True))
         return f"account:{account_id}"
 
     def unschedule_account(self, account_id):
@@ -114,11 +110,7 @@ class Supervisor:
             return a.process_id
         a.start()
         try:
-            r = self.launcher.start(
-                a.executable,
-                a.launch_args,
-                via_steam=self.config.launch_via_steam,
-            )
+            r = self.launcher.start(a.executable, a.launch_args, via_steam=self.config.launch_via_steam)
             a.process_id = r.identity.pid
             a.executable = r.executable
             a.started_at = monotonic()
@@ -192,19 +184,14 @@ class Supervisor:
                     if a.process_id and not self.processes.alive(a.process_id):
                         self._process_death(a)
                     if (
-                        a.process_id
-                        and a.started_at
-                        and a.last_gsi is None
+                        a.process_id and a.started_at and a.last_gsi is None
                         and now - a.started_at > self.config.process_start_timeout
                     ):
                         a.errors.append(f"startup readiness timeout ({self.config.process_start_timeout:.0f}s)")
                         self._process_death(a)
                     if (
-                        a.process_id is None
-                        and a.next_restart_at
-                        and now >= a.next_restart_at
-                        and a.restart_count <= self.config.watchdog_max_restarts
-                        and not self.kill_switch
+                        a.process_id is None and a.next_restart_at and now >= a.next_restart_at
+                        and a.restart_count <= self.config.watchdog_max_restarts and not self.kill_switch
                     ):
                         a.next_restart_at = 0.0
                         try:
