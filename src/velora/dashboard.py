@@ -103,6 +103,8 @@ class Dashboard:
       if action=="create": batch=outer.s.create_batch(str(d["id"]),[str(x) for x in d["account_ids"]],str(d.get("mode","manual")),d.get("target_xp"),bool(d.get("repeat",False)),d.get("max_matches"))
       elif action=="start": batch=outer.s.start_batch(batch_id)
       elif action=="stop": batch=outer.s.stop_batch(batch_id)
+      elif action=="recover": batch=outer.s.recover_batch(batch_id)
+      elif action=="delete": outer.s.delete_batch(batch_id); batch=None
       elif action=="ready": batch=outer.s.batch_player_ready(batch_id)
       elif action=="search": batch=outer.s.batch_start_search(batch_id)
       elif action=="found": batch=outer.s.batch_match_found(batch_id,d.get("match_id"))
