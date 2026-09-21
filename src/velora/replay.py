@@ -43,3 +43,12 @@ class ReplaySession:
 
     def iter_events(self):
         return iter(self.events)
+
+    def events_of(self, kind: str):
+        return (event for event in self.events if event.kind == kind)
+
+    def summary(self):
+        counts = {}
+        for event in self.events:
+            counts[event.kind] = counts.get(event.kind, 0) + 1
+        return {"session_id": self.session_id, "event_count": len(self.events), "kinds": counts}
