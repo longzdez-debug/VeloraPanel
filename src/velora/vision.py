@@ -5,6 +5,7 @@ from math import sqrt
 from typing import Protocol
 from .screen import Frame
 from .vision_scheduler import VisionScheduler
+from .world import WorldModel
 
 
 @dataclass(frozen=True)
@@ -63,10 +64,11 @@ class CpuVisionBackend:
 
 
 class VisionPipeline:
-    def __init__(self, backend: IVisionBackend, output=None, scheduler: VisionScheduler | None = None):
+    def __init__(self, backend: IVisionBackend, output=None, scheduler: VisionScheduler | None = None, world: WorldModel | None = None):
         self.backend = backend
         self.output = output
         self.scheduler = scheduler or VisionScheduler()
+        self.world = world
 
     def process(self, frame: Frame, heavy: bool = True) -> VisionResult | None:
         if heavy:
@@ -75,6 +77,9 @@ class VisionPipeline:
         elif not self.scheduler.should_run_light(frame.metadata.timestamp):
             return None
         result = self.backend.process(frame)
+        if self.world is not None:
+            confidence = max((o.confidence for o in result.observations), default=0.0)
+            self.world.update_vision(frame_id=result.frame_id, timestamp=result.timestamp, observation_count=len(result.observations), confidence=confidence)
         self.scheduler.stats = type(self.scheduler.stats)(
             capture_frames=self.scheduler.stats.capture_frames + 1,
             vision_frames=self.scheduler.stats.vision_frames + 1,
