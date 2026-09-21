@@ -23,6 +23,7 @@ class BatchRuntime:
     match_key: tuple | None = None
     match_started_at: float | None = None
     match_generation: dict[str, int] = field(default_factory=dict)
+    accounted_match_key: tuple | None = None
 
 class FarmOrchestrator:
     def __init__(self, supervisor):
@@ -102,6 +103,26 @@ class FarmOrchestrator:
                 runtime.game_over_seen.add(account_id)
         return bool(runtime.match_key) and len(runtime.game_over_seen) == batch.size
 
+    def _recover_farming(self, batch, runtime, now):
+        if runtime.match_key is None or now < runtime.next_retry:
+            return False
+        try:
+            self.s.farm.recover_farming_batch(batch.id)
+            for account_id in batch.account_ids:
+                self.s.start_account(account_id)
+            runtime.ready.clear()
+            runtime.ready_since = None
+            runtime.search_since = None
+            runtime.last_error = None
+            return True
+        except Exception as exc:
+            runtime.retries += 1
+            runtime.last_error = f"in-match recovery failed: {exc}"
+            runtime.next_retry = now + self.retry_delay * (2 ** min(runtime.retries, 5))
+            if runtime.retries > self.max_retries:
+                self.s.farm.finish_batch(batch.id, False)
+            return False
+
     def _recover(self, batch, runtime, now):
         if now < runtime.next_retry or runtime.retries > self.max_retries:
             return False
@@ -135,6 +156,11 @@ class FarmOrchestrator:
                 continue
 
             accounts = [self.s.get_account(x) for x in batch.account_ids]
+            if batch.state == BatchState.FARMING and runtime.match_key is not None:
+                if any(a is None or a.process_id is None for a in accounts):
+                    if self._recover_farming(batch, runtime, now):
+                        changed = True
+                        continue
             if any(a is None or not a.enabled for a in accounts):
                 self._fail(batch, "batch contains unavailable account", now)
                 changed = True
@@ -208,17 +234,25 @@ class FarmOrchestrator:
                     continue
 
             if batch.state == BatchState.FARMING and self._all_game_over(batch, runtime):
-                batch.scenario.complete_match()
-                runtime.last_match_counted += 1
                 self._update_xp(batch)
-                duration = max(0.0, time() - (runtime.match_started_at or batch.started_at or time()))
-                finished_at = time()
-                for account_id in batch.account_ids:
-                    self.s.stats.record_match(account_id, match_count=1)
-                    state = self.s.pool.farm[account_id]
-                    state.matches_played += 1
-                    state.farm_seconds += duration
-                    state.last_farm_at = finished_at
+                match_key = runtime.match_key
+                if runtime.accounted_match_key != match_key:
+                    batch.scenario.complete_match()
+                    runtime.last_match_counted += 1
+                    duration = max(0.0, time() - (runtime.match_started_at or batch.started_at or time()))
+                    finished_at = time()
+                    for account_id in batch.account_ids:
+                        account = self.s.get_account(account_id)
+                        before = self.s.pool.farm[account_id].xp_before
+                        after = self.s.pool.farm[account_id].xp_after
+                        xp_delta = max(0, after - before) if before is not None and after is not None else 0
+                        result = getattr(account, "last_match_result", None) if account is not None else None
+                        self.s.stats.record_match(account_id, xp_delta=xp_delta, win=result, match_count=1)
+                        state = self.s.pool.farm[account_id]
+                        state.matches_played += 1
+                        state.farm_seconds += duration
+                        state.last_farm_at = finished_at
+                    runtime.accounted_match_key = match_key
                 target_reached = self._target_reached(batch)
                 if target_reached or (batch.max_matches is not None and runtime.last_match_counted >= batch.max_matches):
                     batch.director.finish()
@@ -270,6 +304,7 @@ class FarmOrchestrator:
             "match_key": list(r.match_key) if r.match_key is not None else None,
             "match_started_age": max(0.0, now - r.match_started_at) if r.match_started_at else 0.0,
             "match_generation": dict(r.match_generation),
+            "accounted_match_key": list(r.accounted_match_key) if r.accounted_match_key is not None else None,
         } for r in self.runtime.values()]
 
     def load_snapshot(self, items):
@@ -292,6 +327,7 @@ class FarmOrchestrator:
                     match_key=tuple(match_key) if match_key else None,
                     match_started_at=now - max(0.0, float(value.get("match_started_age", 0.0))) if value.get("match_started_age") else None,
                     match_generation={str(k): int(v) for k, v in value.get("match_generation", {}).items()},
+                    accounted_match_key=tuple(value["accounted_match_key"]) if value.get("accounted_match_key") else None,
                 )
             except (KeyError, TypeError, ValueError):
                 continue
