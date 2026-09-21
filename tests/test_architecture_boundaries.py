@@ -53,3 +53,38 @@ def test_observation_freshness_boundaries():
     assert ObservationValue("x", 8.0, "test", 1.0).fresh(now=9.0, max_age=3.0)
     assert not ObservationValue("x", 10.0, "test", 1.0).fresh(now=9.0, max_age=3.0)
     assert not ObservationValue(None, 1.0, "test", 1.0).fresh(now=1.0, max_age=3.0)
+
+
+def test_decision_engine_allows_fresh_world_state_to_move():
+    from velora.decision import DecisionEngine
+    from velora.navigation import NavigationGoal
+    from velora.world import ObservationValue, WorldModel, LocalizationState
+    import time
+
+    now = time.monotonic()
+    world = WorldModel()
+    position = ObservationValue((1.0, 2.0, 3.0), now, "gsi", 0.95, True)
+    world.update_localization(position=position, status="localized")
+    decision = DecisionEngine().decide(
+        world.snapshot(),
+        NavigationGoal("waypoint", target_area="target", target_position=(4.0, 5.0, 6.0)),
+    )
+    assert decision.action == "move_to_target"
+    assert decision.goal.target_area == "target"
+
+
+def test_decision_engine_relocalizes_stale_world_state():
+    from velora.decision import DecisionEngine
+    from velora.navigation import NavigationGoal
+    from velora.world import ObservationValue, WorldModel
+    import time
+
+    world = WorldModel()
+    position = ObservationValue((1.0, 2.0, 3.0), time.monotonic() - 10.0, "gsi", 0.95, True)
+    world.update_localization(position=position, status="localized")
+    decision = DecisionEngine().decide(
+        world.snapshot(),
+        NavigationGoal("waypoint", target_area="target"),
+    )
+    assert decision.action == "relocalize"
+    assert decision.reason == "localization_stale"
