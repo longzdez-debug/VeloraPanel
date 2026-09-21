@@ -73,6 +73,9 @@ class Supervisor:
             walkbot=bool(getattr(a.walkbot, "enabled", True)),
             executable=a.executable,
             launch_args=list(a.launch_args),
+            route_map=a.route_map,
+            route_start=a.route_start,
+            route_goal=a.route_goal,
         ))
 
     def add_account(self, a):
