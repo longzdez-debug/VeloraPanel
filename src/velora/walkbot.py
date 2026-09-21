@@ -123,7 +123,10 @@ class WalkBot:
    "navigation_goal":self.navigation_goal.target_area if self.navigation_goal else None,
    "decision_action":None if self.last_decision is None else self.last_decision.action,
    "decision_reason":None if self.last_decision is None else self.last_decision.reason,
-   "decision_confidence":None if self.last_decision is None else round(self.last_decision.confidence,3)}
+   "decision_confidence":None if self.last_decision is None else round(self.last_decision.confidence,3),
+   "vision_frame_id":self.world.snapshot().vision.frame_id,
+   "vision_observation_count":self.world.snapshot().vision.observation_count,
+   "vision_confidence":self.world.snapshot().vision.confidence}
 
  def replan_from_position(self,position):
   if self.replan is None:return False
@@ -174,7 +177,8 @@ class WalkBot:
   position=position or self.last_position
   if position is None:return
   self.last_position=position;target=self.path[self.index]
-  current_area = self.nav_graph.nearest(position, self.cfg.arrive_radius * 2).id if self.nav_graph is not None and self.nav_graph.nearest(position, self.cfg.arrive_radius * 2) is not None else self.world.snapshot().localization.nav_area
+  nearest = self.nav_graph.nearest(position, self.cfg.arrive_radius * 2) if self.nav_graph is not None else None
+  current_area = nearest.id if nearest is not None else self.world.snapshot().localization.nav_area
   self.world.update_navigation(current_area=current_area, progress=(self.index/max(1,len(self.path)-1)) if self.path else 0.0)
   d=hypot(target.x-position[0],target.y-position[1])
   if d<=self.cfg.arrive_radius:
