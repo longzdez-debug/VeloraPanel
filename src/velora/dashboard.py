@@ -1,7 +1,7 @@
 from __future__ import annotations
 import json,os,time
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
-from threading import Thread
+from threading import Thread,Lock
 from urllib.parse import urlparse,unquote
 from .diagnostics import as_dict,run_checks
 from .routes import Node
@@ -17,7 +17,7 @@ HTML="""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="v
 <section id=overview class="page active"><div class=hero><div><div class=eyebrow>CONTROL PLANE</div><h1>Command Center</h1><p>Real-time account orchestration, FSM, matches, WalkBot and telemetry.</p></div><div class=actions><button onclick=diag>RUN DIAGNOSTICS</button><button class=primary onclick="go('accounts')">MANAGE ACCOUNTS →</button></div></div>
 <div class=metrics><div class=metric><label>ACCOUNTS</label><strong id=mA>—</strong><small>registered accounts</small></div><div class=metric><label>RUNNING</label><strong id=mR>—</strong><small>active account workers</small></div><div class=metric><label>BATCHES</label><strong id=mB>—</strong><small>orchestration jobs</small></div><div class=metric><label>WALKBOT</label><strong id=mW>—</strong><small>active workers</small></div></div>
 <div class="panel danger-panel" style="margin-top:13px"><div class=ph><div><b>EMERGENCY CONTROL</b><small>Global kill switch and recovery controls</small></div><span class="state bad">● KILL SWITCH</span></div><div class="pb danger-row"><div><b>Emergency Stop All</b><p>Immediately stop active batches and automation workers.</p></div><button class=danger onclick="confirmAction('Emergency Stop','Stop all active batches, FSM workers and WalkBot processes?',kill)">STOP ALL</button></div></div>
-<div class=grid2><div class=panel><div class=ph><div><b>ACTIVE ACCOUNTS</b><small>Live supervisor snapshot</small></div><button onclick="go('accounts')">VIEW ALL →</button></div><div class=pb><div id=ovAccounts class=accounts></div></div></div><div class=panel><div class=ph><div><b>SYSTEM HEALTH</b><small>Latest diagnostics</small></div><button onclick=diag>CHECK</button></div><div class=pb><div id=healthGrid class=health></div></div></div></div></section>
+<div class=panel style="margin-top:13px"><div class=ph><div><b>EVENT TIMELINE</b><small>Operator actions and safety events</small></div><button onclick=loadEvents>↻ Refresh</button></div><div class=pb><div id=eventList class=accounts></div></div></div><div class=grid2><div class=panel><div class=ph><div><b>ACTIVE ACCOUNTS</b><small>Live supervisor snapshot</small></div><button onclick="go('accounts')">VIEW ALL →</button></div><div class=pb><div id=ovAccounts class=accounts></div></div></div><div class=panel><div class=ph><div><b>SYSTEM HEALTH</b><small>Latest diagnostics</small></div><button onclick=diag>CHECK</button></div><div class=pb><div id=healthGrid class=health></div></div></div></div></section>
 <section id=accounts class=page><div class=hero><div><div class=eyebrow>CONTROL</div><h1>Accounts</h1><p>Manage account workers, routes and process lifecycle.</p></div><div class=actions><button onclick=refreshAll>↻ Refresh</button></div></div><div class=panel><div class=ph><div class=toolbar><input class=search id=accountSearch oninput="renderAccounts(lastStatus?.accounts||[])"><select id=accountFilter onchange="renderAccounts(lastStatus?.accounts||[])"><option value=all>All states</option><option value=running>Running</option><option value=error>Error</option><option value=stopped>Stopped</option></select><button onclick=selectVisible>SELECT VISIBLE</button><button onclick=clearSelection>CLEAR</button></div><div class=toolbar><input id=bid placeholder="batch id"><select id=bmode><option value=manual>Manual</option><option value=2v2>2v2</option><option value=2v2_random>2v2 Random</option><option value=5v5>5v5</option><option value=5v5_shuffle>5v5 Shuffle</option><option value=deathmatch>Deathmatch</option><option value=arms_race>Arms Race</option><option value=armory>Armory</option></select><button class=primary onclick=createBatch>CREATE BATCH</button></div></div><div class=pb><div id=accountsList class=accounts></div></div></div></section>
 <section id=batches class=page><div class=hero><div><div class=eyebrow>ORCHESTRATION</div><h1>Batches</h1><p>Match jobs, readiness and recovery state.</p></div></div><div class=panel><div class=pb><div id=batchList></div></div></div></section>
 <section id=fsm class=page><div class=hero><div><div class=eyebrow>STATE MACHINE</div><h1>Account FSM</h1><p>Live account lifecycle states across all workers.</p></div></div><div class=panel><div class=ph><b>ACCOUNT LIFECYCLE</b><small>Live snapshot</small></div><div class=pb><div id=fsmBoard class=fsm></div></div></div><div class="panel" style="margin-top:13px"><div class=ph><b>STATE TABLE</b></div><div class=pb><table class=table><thead><tr><th>ACCOUNT</th><th>STATE</th><th>RESTARTS</th><th>PID</th><th>STARTED</th></tr></thead><tbody id=fsmTable></tbody></table></div></div></section>
@@ -33,7 +33,7 @@ window.addEventListener('error',function(e){try{fetch('/api/client-error',{metho
 window.addEventListener('unhandledrejection',function(e){try{fetch('/api/client-error',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:e.reason&&e.reason.stack||String(e.reason||'Unhandled rejection')})})}catch(_){}});
 fetch('/api/client-error',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:'CLIENT BOOT SCRIPT REACHED'})}).catch(function(){});
 </script><script>
-const $=id=>document.getElementById(id);let route={nodes:[],edges:[]},lastStatus=null,lastDiag=null;
+const $=id=>document.getElementById(id);let route={nodes:[],edges:[]},lastStatus=null,lastDiag=null,lastEvents=[];
 function clientError(message,source='',line=0,column=0){try{fetch('/api/client-error',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:String(message||'Unknown client error'),source:String(source||''),line:Number(line)||0,column:Number(column)||0})})}catch(_){}}
 window.addEventListener('error',e=>clientError(e.message,e.filename,e.lineno,e.colno));
 window.addEventListener('unhandledrejection',e=>clientError(e.reason?.stack||e.reason?.message||String(e.reason||'Unhandled rejection')));
@@ -97,6 +97,8 @@ async function loadLogs(){try{const j=await api('/api/logs?lines=500');$('logsBo
 async function act(id,op){try{await api('/api/accounts/'+encodeURIComponent(id)+'/'+op,'POST');toast(op.toUpperCase()+' requested');await load()}catch(e){toast(e.message,true)}}
 async function batchAct(id,a){try{await api('/api/farm/batches/'+encodeURIComponent(id),'POST',{action:a});toast(a.toUpperCase()+' requested');await load()}catch(e){toast(e.message,true)}}
 async function createBatch(){try{const ids=selectedAccounts(),id=$('bid').value.trim();if(!ids.length)throw Error('Select accounts first');if(!id)throw Error('Batch id is required');await api('/api/farm/batches/'+encodeURIComponent(id),'POST',{action:'create',id,account_ids:ids,mode:$('bmode').value});toast('Batch created');await load()}catch(e){toast(e.message,true)}}
+function renderEvents(items){lastEvents=items||[];const box=$('eventList');if(!box)return;if(!lastEvents.length){box.innerHTML='<div class=muted>No events yet.</div>';return}box.innerHTML=lastEvents.slice().reverse().map(e=>'<div class=acct><div class=acctmain><div class="avatar">'+esc(String(e.kind||'EV').slice(0,2).toUpperCase())+'</div><div><b>'+esc(e.message||'')+'</b><small>'+esc(new Date((e.ts||0)*1000).toLocaleTimeString())+(e.account_id?' · '+esc(e.account_id):'')+(e.batch_id?' · '+esc(e.batch_id):'')+'</small></div></div><span class="state '+(e.level==='warning'||e.level==='error'?'bad':'ok')+'">'+esc(String(e.level||'info').toUpperCase())+'</span></div>').join('');if($('language').value==='ru')localizeDom()}
+async function loadEvents(){try{const j=await api('/api/events?limit=100');renderEvents(j.events||[])}catch(e){toast('Events: '+e.message,true)}}
 async function refreshMaps(){const m=await api('/api/routes');$('map').innerHTML=(m.maps||[]).map(x=>'<option value="'+esc(x)+'">'+esc(x)+'</option>').join('')}
 async function refreshMap(){if(!$('map').value)return;route=await api('/api/routes/'+encodeURIComponent($('map').value));renderRoute()}
 async function newMap(){const n=prompt('Map name');if(!n?.trim())return;try{await api('/api/routes/create','POST',{map:n.trim()});await refreshMaps();$('map').value=n.trim();await refreshMap();toast('Map created')}catch(e){toast(e.message,true)}}
@@ -106,10 +108,10 @@ async function edge(){try{route=await api('/api/routes/'+encodeURIComponent($('m
 async function removeNode(){try{route=await api('/api/routes/'+encodeURIComponent($('map').value)+'/nodes/delete','POST',{id:$('del').value});renderRoute();toast('Node deleted')}catch(e){toast(e.message,true)}}
 async function save(){try{const j=await api('/api/routes/'+encodeURIComponent($('map').value)+'/save','POST');toast('Map saved'+(j.validation?.length?' · validation issues':''),!!j.validation?.length)}catch(e){toast(e.message,true)}}
 function focusTool(t){$(t==='add'?'nid':t==='connect'?'ra':'del').focus()}
-async function refreshAll(){try{await Promise.all([load(),diag(),loadLogs()]);toast('Control center refreshed')}catch(e){toast(e.message,true)}}
+async function refreshAll(){try{await Promise.all([load(),diag(),loadLogs(),loadEvents()]);toast('Control center refreshed')}catch(e){toast(e.message,true)}}
 async function loadLanguage(){try{const lang=(await api('/api/settings/language')).language||'en';$('language').value=lang;applyLanguage(lang)}catch{}}
-async function init(){await loadLanguage();await load();await diag();await loadLogs();try{await refreshMaps();if($('map').options.length)await refreshMap()}catch(e){toast('Route API: '+e.message,true)}}
-document.querySelectorAll('.nav button').forEach(x=>x.onclick=()=>go(x.dataset.page));init();setInterval(load,2000);setInterval(diag,10000);setInterval(loadLogs,5000);
+async function init(){await loadLanguage();await load();await diag();await loadLogs();await loadEvents();try{await refreshMaps();if($('map').options.length)await refreshMap()}catch(e){toast('Route API: '+e.message,true)}}
+document.querySelectorAll('.nav button').forEach(x=>x.onclick=()=>go(x.dataset.page));init();setInterval(load,2000);setInterval(diag,10000);setInterval(loadLogs,5000);setInterval(loadEvents,2500);
 </script></body></html>"""
 
 
@@ -126,10 +128,20 @@ class Dashboard:
  def __init__(self,supervisor,host="127.0.0.1",port=8765):
   self.s=supervisor;self.host=host;self.port=port;self.server=None
   self.logger=get_logger("dashboard")
+  self._events=[]
+  self._event_lock=Lock()
+  self._event_seq=0
   self.settings=JsonStore(os.path.join(self.s.config.data_dir,"settings.json"))
   saved=self.settings.load({"language":"en"})
   self.language=saved.get("language","en") if isinstance(saved,dict) else "en"
   if self.language not in {"en","ru"}: self.language="en"
+ def _event(self,kind,message,account_id=None,batch_id=None,level="info"):
+  with self._event_lock:
+   self._event_seq+=1
+   self._events.append({"id":self._event_seq,"ts":time.time(),"kind":str(kind),"message":str(message),"account_id":account_id,"batch_id":batch_id,"level":str(level)})
+   if len(self._events)>500:self._events=self._events[-500:]
+  getattr(self.logger,level if level in {"debug","info","warning","error"} else "info")("EVENT kind=%s account=%s batch=%s message=%s",kind,account_id,batch_id,message)
+
  def start(self):
   outer=self
   class H(BaseHTTPRequestHandler):
@@ -145,6 +157,11 @@ class Dashboard:
     if p=="/api/status":
      now=time.monotonic()
      return self._json({"running":outer.s.running,"kill_switch":outer.s.kill_switch,"resources":outer.s.resources.snapshot(),"batches":outer.s.farm.snapshot(),"lobbies":outer.s.lobbies.snapshot(),"scheduler":outer.s.scheduler.snapshot(),"orchestrator":outer.s.orchestrator.snapshot(),"stats":outer.s.stats.snapshot(),"accounts":[{"id":a.id,"name":a.name,"state":a.fsm.state.value,"match":a.match_state().value,"round":a.match.round_number,"rounds_seen":getattr(a,"match_rounds",0),"xp":a.last_xp,"score":a.last_score,"opponent_score":a.last_opponent_score,"result":a.last_match_result,"walkbot":a.walkbot.fsm.state.value,"process_id":a.process_id,"route_map":a.route_map,"route_goal":a.route_goal,"gsi_age":None if a.walkbot.last_gsi is None else max(0,now-a.walkbot.last_gsi),"errors":a.errors[-5:],"restart_count":a.restart_count,"next_restart_at":a.next_restart_at,"started_at":a.started_at} for a in outer.s.accounts]})
+    if p=="/api/events":
+     try: limit=max(1,min(200,int(__import__("urllib.parse",fromlist=["parse_qs"]).parse_qs(urlparse(self.path).query).get("limit",["100"])[0]))
+     except ValueError: limit=100
+     with outer._event_lock: events=list(outer._events[-limit:])
+     return self._json({"events":events})
     if p=="/api/farm/batches":
      return self._json({"batches":outer.s.farm.snapshot()})
     if p=="/api/routes":
@@ -173,8 +190,8 @@ class Dashboard:
     try:
      if parts==["api","client-error"]:
       d=self._body();outer.logger.error("CLIENT ERROR message=%s source=%s line=%s column=%s",str(d.get("message","")),str(d.get("source","")),d.get("line",0),d.get("column",0));return self._json({"ok":True})
-     if parts==["api","emergency-stop"]:outer.logger.warning("EMERGENCY STOP requested");outer.s.emergency_stop();return self._json({"ok":True})
-     if parts==["api","kill-switch","clear"]:outer.logger.warning("KILL SWITCH clear requested");outer.s.clear_kill_switch();return self._json({"ok":True})
+     if parts==["api","emergency-stop"]:outer.logger.warning("EMERGENCY STOP requested");outer._event("safety","Emergency stop requested",level="warning");outer.s.emergency_stop();outer._event("safety","Emergency stop completed",level="warning");return self._json({"ok":True})
+     if parts==["api","kill-switch","clear"]:outer.logger.warning("KILL SWITCH clear requested");outer.s.clear_kill_switch();outer._event("safety","Kill switch cleared",level="warning");return self._json({"ok":True})
      if parts==["api","settings","language"]:
       d=self._body();lang=str(d.get("language","en")).lower()
       if lang not in {"en","ru"}: return self._json({"error":"unsupported language"},400)
@@ -215,11 +232,11 @@ class Dashboard:
      if len(parts)==4 and parts[:3]==["api","farm","batches"]:
       batch_id=parts[3]; d=self._body()
       action=str(d.get("action",""))
-      if action=="create": batch=outer.s.create_batch(str(d["id"]),[str(x) for x in d["account_ids"]],str(d.get("mode","manual")),d.get("target_xp"),bool(d.get("repeat",False)),d.get("max_matches"))
-      elif action=="start": batch=outer.s.start_batch(batch_id)
-      elif action=="stop": batch=outer.s.stop_batch(batch_id)
-      elif action=="recover": batch=outer.s.recover_batch(batch_id)
-      elif action=="delete": outer.s.delete_batch(batch_id); batch=None
+      if action=="create": batch=outer.s.create_batch(str(d["id"]),[str(x) for x in d["account_ids"]],str(d.get("mode","manual")),d.get("target_xp"),bool(d.get("repeat",False)),d.get("max_matches"));outer._event("batch","Batch created",batch_id=batch_id)
+      elif action=="start": batch=outer.s.start_batch(batch_id);outer._event("batch","Batch started",batch_id=batch_id)
+      elif action=="stop": batch=outer.s.stop_batch(batch_id);outer._event("batch","Batch stopped",batch_id=batch_id,level="warning")
+      elif action=="recover": batch=outer.s.recover_batch(batch_id);outer._event("batch","Batch recovery requested",batch_id=batch_id,level="warning")
+      elif action=="delete": outer.s.delete_batch(batch_id); outer._event("batch","Batch deleted",batch_id=batch_id,level="warning"); batch=None
       elif action=="ready": batch=outer.s.batch_player_ready(batch_id)
       elif action=="search": batch=outer.s.batch_start_search(batch_id)
       elif action=="found": batch=outer.s.batch_match_found(batch_id,d.get("match_id"))
@@ -228,10 +245,10 @@ class Dashboard:
      if len(parts)==4 and parts[:2]==["api","accounts"]:
       a=outer.s.get_account(parts[2])
       if not a:return self._json({"error":"account not found"},404)
-      if parts[3]=="start":outer.s.start_account(a.id)
-      elif parts[3]=="schedule":outer.s.schedule_account(a.id)
-      elif parts[3]=="stop":outer.s.stop_account(a.id)
-      elif parts[3]=="kill":outer.s.stop_account(a.id);outer.logger.warning("account kill requested id=%s",a.id)
+      if parts[3]=="start":outer.s.start_account(a.id);outer._event("account","Account started",account_id=a.id)
+      elif parts[3]=="schedule":outer.s.schedule_account(a.id);outer._event("account","Account scheduled",account_id=a.id)
+      elif parts[3]=="stop":outer.s.stop_account(a.id);outer._event("account","Account stopped",account_id=a.id,level="warning")
+      elif parts[3]=="kill":outer.s.stop_account(a.id);outer.logger.warning("account kill requested id=%s",a.id);outer._event("safety","Account kill requested",account_id=a.id,level="warning")
       elif parts[3]=="route":
        d=self._body();outer.s.set_route_from_position(a.id,str(d["map"]),str(d["goal"]),a.walkbot.last_position or (0,0,0));outer.s.save_account_profile(a.id)
       else:return self._json({"error":"unknown action"},404)
