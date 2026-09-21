@@ -106,6 +106,8 @@ class FarmOrchestrator:
             account = self.s.get_account(account_id)
             state = self.s.pool.farm[account_id]
             if account and account.last_xp is not None:
+                if state.xp_before is None:
+                    state.xp_before = account.last_xp
                 state.xp_after = account.last_xp
 
     def _all_game_over(self, batch, runtime):
