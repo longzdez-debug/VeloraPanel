@@ -175,7 +175,8 @@ class WalkBot:
    self.input.release_all();self.recoveries+=1;self.recovery_reason="stuck"
    if self.recoveries>self.cfg.max_recoveries:self.stop();return
    self.fsm.dispatch("stuck");self.fsm.dispatch("recover");self.recovery_started=now;self.recovery_until=now+self.cfg.recovery_seconds;return
-  decision=self.decision_engine.decide(self.world.snapshot(), self.navigation_goal)
+  decision_goal=self.navigation_goal or NavigationGoal("waypoint", target_position=(target.x,target.y,target.z), reason="path_waypoint")
+  decision=self.decision_engine.decide(self.world.snapshot(), decision_goal)
   if decision.action != "move_to_target":
    self.movement_controller.stop()
    self.last_command={"forward":False,"back":False,"left":False,"right":False}
