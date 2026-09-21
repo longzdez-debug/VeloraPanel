@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from time import monotonic
+from time import time
 
 from .account_pool import AccountPool, FarmStatus
 from .resource import ResourceManager
@@ -38,7 +38,7 @@ class FarmBatch:
     mode: str = "manual"
     target_xp: int | None = None
     state: BatchState = BatchState.IDLE
-    created_at: float = field(default_factory=monotonic)
+    created_at: float = field(default_factory=time)
     started_at: float | None = None
     finished_at: float | None = None
     errors: list[str] = field(default_factory=list)
@@ -88,7 +88,7 @@ class FarmManager:
             raise RuntimeError("batch contains disabled or unavailable account")
         batch.director.prepare(batch.size)
         batch.state = BatchState.SELECTING
-        batch.started_at = monotonic()
+        batch.started_at = time()
         for account_id in batch.account_ids:
             self.pool.mark(account_id, FarmStatus.IN_PROGRESS, target_xp=batch.target_xp)
         batch.state = BatchState.STARTING
@@ -109,7 +109,7 @@ class FarmManager:
     def finish_batch(self, batch_id: str, success: bool = True) -> FarmBatch:
         batch = self.batches[batch_id]
         batch.state = BatchState.FINISHED if success else BatchState.ERROR
-        batch.finished_at = monotonic()
+        batch.finished_at = time()
         if success:
             for account_id in batch.account_ids:
                 self.pool.mark(account_id, FarmStatus.COMPLETED)
@@ -145,6 +145,18 @@ class FarmManager:
         batch.director.match_found(match_id)
         batch.state = BatchState.FARMING
         return batch
+
+    def load_snapshot(self, items: list[dict]) -> None:
+        for item in items or []:
+            try:
+                b=FarmBatch(str(item["id"]),[str(x) for x in item.get("account_ids",[])],str(item.get("mode","manual")),item.get("target_xp"))
+                b.state=BatchState(str(item.get("state",BatchState.IDLE.value)))
+                b.created_at=item.get("created_at",b.created_at); b.started_at=item.get("started_at"); b.finished_at=item.get("finished_at")
+                b.errors=list(item.get("errors",[]))[-20:]
+                b.director.expected_players=int(item.get("expected_players",b.size)); b.director.ready_players=int(item.get("ready_players",0)); b.director.match_id=item.get("match_id")
+                self.batches[b.id]=b
+            except (KeyError,ValueError,TypeError):
+                continue
 
     def snapshot(self) -> list[dict]:
         return [{
