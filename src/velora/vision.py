@@ -1,0 +1,73 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from math import sqrt
+from typing import Protocol
+from .screen import Frame
+
+
+@dataclass(frozen=True)
+class VisionObservation:
+    kind: str
+    timestamp: float
+    confidence: float
+    data: dict
+
+
+@dataclass(frozen=True)
+class VisionResult:
+    frame_id: int
+    timestamp: float
+    observations: tuple[VisionObservation, ...]
+
+
+class IVisionBackend(Protocol):
+    def process(self, frame: Frame) -> VisionResult: ...
+
+
+class CpuVisionBackend:
+    """Dependency-free baseline CV metrics over BGRA frames.
+
+    This is intentionally a real image-analysis backend, not a synthetic detector.
+    Domain-specific landmark/object detectors can consume these frames without
+    coupling the rest of WalkBot to OpenCV/ONNX.
+    """
+
+    def __init__(self, sample_step: int = 8):
+        self.sample_step = max(1, int(sample_step))
+
+    def process(self, frame: Frame) -> VisionResult:
+        if frame.channels != 4 or frame.pixel_format != "BGRA8":
+            raise ValueError("CpuVisionBackend expects BGRA8 frames")
+        pixels = frame.pixels
+        width, height = frame.metadata.width, frame.metadata.height
+        step = self.sample_step * 4
+        luminance = []
+        for offset in range(0, len(pixels) - 3, step):
+            b, g, r = pixels[offset], pixels[offset + 1], pixels[offset + 2]
+            luminance.append(0.114 * b + 0.587 * g + 0.299 * r)
+        if not luminance:
+            return VisionResult(frame.metadata.frame_id, frame.metadata.timestamp, ())
+        mean = sum(luminance) / len(luminance)
+        variance = sum((x - mean) ** 2 for x in luminance) / len(luminance)
+        edges = sum(abs(luminance[i] - luminance[i - 1]) >= 24 for i in range(1, len(luminance)))
+        edge_density = edges / max(1, len(luminance) - 1)
+        observation = VisionObservation(
+            "frame_metrics", frame.metadata.timestamp, 1.0,
+            {"mean_luma": round(mean, 3), "luma_stddev": round(sqrt(variance), 3),
+             "edge_density": round(edge_density, 5), "sample_count": len(luminance),
+             "width": width, "height": height},
+        )
+        return VisionResult(frame.metadata.frame_id, frame.metadata.timestamp, (observation,))
+
+
+class VisionPipeline:
+    def __init__(self, backend: IVisionBackend, output=None):
+        self.backend = backend
+        self.output = output
+
+    def process(self, frame: Frame) -> VisionResult:
+        result = self.backend.process(frame)
+        if self.output:
+            self.output(result)
+        return result
