@@ -29,14 +29,16 @@ class StatsStore:
         account_id: str,
         *,
         xp_delta: int = 0,
-        win: bool = False,
+        win: bool | None = None,
         match_count: int = 1,
     ) -> AccountStats:
         stats = self.get(account_id)
         stats.matches += max(1, int(match_count))
         stats.xp += int(xp_delta)
-        stats.wins += int(win)
-        stats.losses += int(not win)
+        if win is True:
+            stats.wins += 1
+        elif win is False:
+            stats.losses += 1
         stats.last_match_at = time()
         return stats
 
