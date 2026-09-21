@@ -1,20 +1,16 @@
 from __future__ import annotations
-
 from dataclasses import dataclass
 from pathlib import Path
 import subprocess
 import time
-
 from .process import ProcessIdentity, ProcessSupervisor
 from .steam import APP_ID, find_cs2, find_steam
-
 
 @dataclass(frozen=True)
 class LaunchResult:
     identity: ProcessIdentity
     executable: str
     via_steam: bool = False
-
 
 class Cs2Launcher:
     def __init__(self, processes=None, startup_timeout: float = 30.0):
