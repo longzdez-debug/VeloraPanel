@@ -1,5 +1,6 @@
 from __future__ import annotations
 import asyncio
+from time import monotonic
 from dataclasses import dataclass, field
 from .config import Config
 from .gsi import GsiServer
@@ -22,6 +23,7 @@ class Supervisor:
         self.route_store = RouteStore(JsonStore(f"{self.config.data_dir}/routes.json"))
         self.kill_switch = False
         self.window_guards = {}
+  self._watchdog_due = {}
 
     def add_account(self, a):
         if not any(x.id == a.id for x in self.accounts):
@@ -148,6 +150,14 @@ class Supervisor:
                 for a in self.accounts:
                     if a.process_id and not self.processes.alive(a.process_id):
                         self._process_death(a)
+                    if (a.process_id is None and a.next_restart_at and monotonic() >= a.next_restart_at
+                            and a.restart_count <= self.config.watchdog_max_restarts and not self.kill_switch):
+                        a.next_restart_at = 0.0
+                        try:
+                            self.start_account(a.id)
+                            a.errors.append(f"watchdog restart #{a.restart_count}")
+                        except Exception as exc:
+                            a.errors.append(f"watchdog restart failed: {exc}")
                     try:
                         a.walkbot.tick(a.walkbot.last_position)
                     except Exception as exc:
