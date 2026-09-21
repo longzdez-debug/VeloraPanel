@@ -55,3 +55,8 @@ The modernization keeps the external boundary. No memory reader, injection, hook
 - Map-mismatch stopping now goes through WalkBot's safety boundary rather than calling the input adapter from Supervisor.
 - Route metadata is synchronized when persisted routes are used for planning.
 - External localization fusion is covered by deterministic tests; no visual coordinates are invented.
+
+
+## Final integration hardening checkpoint
+- Decision Engine now refuses stale localization before movement decisions.
+- Movement replay records decision confidence for offline diagnosis.
