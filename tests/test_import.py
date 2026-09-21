@@ -1,0 +1,1 @@
+def test_package_import(): import velora; assert velora.__version__=="2.0.0"
