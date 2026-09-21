@@ -1,8 +1,17 @@
 # Roadmap
-1. Desktop dashboard: account grid, live FSM state, GSI health, process ownership.
-2. Match interpreter: robust round/match transitions including overtime.
-3. Waypoint editor: graph validation, branch strategies, route preview.
-4. Windows input adapter behind an explicit safety/kill-switch boundary.
-5. Telemetry timeline and crash/recovery journal.
-6. Multi-account scheduler with resource budgets.
-7. Hardware-independent integration tests and replayable GSI fixtures.
+
+The core launchable control plane is implemented. Remaining work is validation and optional expansion rather than missing foundation.
+
+## Before real input
+- Run the complete pytest suite.
+- Verify the GSI token and CS2 GSI delivery.
+- Build at least one real map route in the route editor.
+- Dry-run with NullInput.
+- Enable foreground-gated Windows input only after the dry run.
+
+## Optional future expansion
+1. Replay-based GSI integration fixtures for long-session regression tests.
+2. Richer map geometry and collision-aware navigation.
+3. Mouse/yaw control and route calibration where required by a supported WalkBot mode.
+4. Persistent scheduler jobs and resource budgets for large multi-account deployments.
+5. Dashboard authentication if remote/LAN administration is ever required.
