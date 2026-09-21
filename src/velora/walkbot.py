@@ -160,7 +160,7 @@ class WalkBot:
 
  def _recovery_tick(self,now):
   if now>=self.recovery_until:
-   self.input.release_all()
+   self.movement_controller.stop()
    if self.last_position is not None and self.replan and self.replan_from_position(self.last_position):return
    if self.recoveries>=self.cfg.max_recoveries:self.stop();return
    self.fsm.dispatch("retry");self.last_progress=now;return
@@ -184,14 +184,14 @@ class WalkBot:
   self.world.update_navigation(current_area=current_area, progress=(self.index/max(1,len(self.path)-1)) if self.path else 0.0)
   d=hypot(target.x-position[0],target.y-position[1])
   if d<=self.cfg.arrive_radius:
-   self.input.release_all()
+   self.movement_controller.stop()
    if self.index+1<len(self.path):self.index+=1;self.fsm.dispatch("arrive");self.fsm.dispatch("wait");self.fsm.dispatch("next")
    else:self.fsm.dispatch("arrive")
    self.progress_position=position;self.last_progress=now;return
   if self.progress_position is None:self.progress_position=position;self.last_progress=now
   elif hypot(position[0]-self.progress_position[0],position[1]-self.progress_position[1])>2:self.progress_position=position;self.last_progress=now;self.recoveries=0
   if now-self.last_progress>=self.cfg.stuck_seconds:
-   self.input.release_all()
+   self.movement_controller.stop()
    progress_age=now-self.last_progress
    loc=self.world.snapshot().localization.position
    recovery=self.recovery_coordinator.observe("stuck",progress_age,loc.confidence,now)
