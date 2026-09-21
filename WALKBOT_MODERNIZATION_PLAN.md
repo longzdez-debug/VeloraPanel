@@ -43,3 +43,12 @@ A phase is complete only when implementation, integration, tests, telemetry/logg
 The WalkBot runtime now routes normal movement through DecisionEngine -> Steering/legacy navigation -> MovementController -> ExternalInput, while GSI observations are normalized into WorldModel. Recovery decisions are centralized and replayable. Vision scheduling records capture/inference/drop metrics, and an offline ReplayRunner provides deterministic inspection without external input. Dashboard telemetry exposes navigation/recovery state.
 
 Remaining validation is limited to repository CI and Windows/CS2 runtime checks; no internal game-memory or injection mechanism is required.
+
+
+## Final implementation checkpoint — 2026-09-21
+The repository implementation is complete for the defined external-only modernization scope. The runtime path is:
+GSI / screen perception -> normalized WorldModel -> DecisionEngine -> navigation/steering -> MovementController -> ExternalInput, with recovery, evidence, behaviour, replay and telemetry surrounding the loop.
+
+The project deliberately does not claim domain-specific visual localization without real map/model assets, nor GPU inference without an installed backend. These are extension points rather than fabricated functionality.
+
+Validation boundary: repository/CI validation can be automated; physical Windows + CS2 runtime validation requires the target machine. No successful runtime result is claimed unless actually observed.
