@@ -41,7 +41,7 @@ class Dashboard:
    def _body(self):
     n=int(self.headers.get("Content-Length","0") or 0)
     if n > 1024 * 1024: raise ValueError("request body too large")
-    return json.loads(self.rfile.read(n) or b"{}"}
+    return json.loads(self.rfile.read(n) or b"{}")
    def _json(self,obj,status=200):
     b=json.dumps(obj,ensure_ascii=False).encode();self.send_response(status);self.send_header("Content-Type","application/json");self.send_header("Cache-Control","no-store");self.end_headers();self.wfile.write(b)
    def do_GET(self):
