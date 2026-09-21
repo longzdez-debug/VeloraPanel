@@ -20,7 +20,9 @@ class BatchRuntime:
     last_match_counted: int = 0
     ready_since: float | None = None
     search_since: float | None = None
-
+    match_key: tuple | None = None
+    match_started_at: float | None = None
+    match_generation: dict[str, int] = field(default_factory=dict)
 
 class FarmOrchestrator:
     def __init__(self, supervisor):
@@ -30,6 +32,7 @@ class FarmOrchestrator:
         self.retry_delay = 5.0
         self.ready_timeout = 90.0
         self.search_timeout = 180.0
+        self.match_grace = 8.0
 
     def _rt(self, batch):
         return self.runtime.setdefault(batch.id, BatchRuntime(batch.id))
@@ -56,12 +59,28 @@ class FarmOrchestrator:
             for account_id in batch.account_ids
         )
 
+    def _capture_match(self, batch, runtime, now):
+        accounts = [self.s.get_account(x) for x in batch.account_ids]
+        if any(a is None for a in accounts):
+            return False
+        identities = [a.match_identity for a in accounts]
+        if any(key[1] is None or key[0] <= runtime.match_generation.get(a.id, -1) for a, key in zip(accounts, identities)):
+            return False
+        maps = {key[1] for key in identities}
+        rounds = {key[2] for key in identities if key[2] is not None}
+        generations = {key[0] for key in identities}
+        if len(maps) != 1 or (len(rounds) > 1) or (len(generations) != 1):
+            return False
+        runtime.match_key = (next(iter(maps)), next(iter(rounds)) if rounds else None, next(iter(generations)))
+        runtime.match_started_at = time()
+        return True
+
     def _all_game_over(self, batch, runtime):
         for account_id in batch.account_ids:
             account = self.s.get_account(account_id)
             if account and account.match_state() == MatchState.GAME_OVER:
                 runtime.game_over_seen.add(account_id)
-        return len(runtime.game_over_seen) == batch.size
+        return bool(runtime.match_key) and len(runtime.game_over_seen) == batch.size
 
     def _recover(self, batch, runtime, now):
         if now < runtime.next_retry or runtime.retries > self.max_retries:
@@ -70,7 +89,11 @@ class FarmOrchestrator:
             self.s.start_batch(batch.id)
             runtime.ready.clear()
             runtime.game_over_seen.clear()
+            runtime.match_key = None
+            runtime.match_started_at = None
+            runtime.match_generation.clear()
             runtime.ready_since = now
+            runtime.search_since = None
             runtime.last_error = None
             return True
         except Exception as exc:
@@ -132,6 +155,11 @@ class FarmOrchestrator:
                         self.s.farm.start_search(batch.id)
                         runtime.ready_since = None
                         runtime.search_since = now
+                        runtime.match_key = None
+                        runtime.match_started_at = None
+                        runtime.match_generation = {
+                            a.id: getattr(a.match, "match_id", 0) for a in accounts
+                        }
                         changed = True
                     except Exception as exc:
                         self._fail(batch, f"search start failed: {exc}", now)
@@ -142,13 +170,17 @@ class FarmOrchestrator:
                 if search_since is None:
                     runtime.search_since = now
                     search_since = now
-                if self._all_live(batch):
-                    try:
-                        self.s.farm.match_found(batch.id)
-                        runtime.game_over_seen.clear()
-                        changed = True
-                    except Exception as exc:
-                        self._fail(batch, f"match transition failed: {exc}", now)
+                if self._all_live(batch) and runtime.match_key is None:
+                    if self._capture_match(batch, runtime, now):
+                        try:
+                            self.s.farm.match_found(batch.id, runtime.match_key)
+                            runtime.game_over_seen.clear()
+                            changed = True
+                        except Exception as exc:
+                            self._fail(batch, f"match transition failed: {exc}", now)
+                            changed = True
+                    elif now - search_since > self.match_grace:
+                        self._fail(batch, "match identity could not be correlated", now)
                         changed = True
                 elif now - search_since > self.search_timeout:
                     self._fail(batch, "match search timeout", now)
@@ -174,6 +206,9 @@ class FarmOrchestrator:
                     batch.scenario.reset()
                     runtime.ready.clear()
                     runtime.game_over_seen.clear()
+                    runtime.match_key = None
+                    runtime.match_started_at = None
+                    runtime.match_generation.clear()
                     runtime.ready_since = now
                     runtime.search_since = None
                     batch.state = BatchState.WAITING_FOR_READY
@@ -209,6 +244,9 @@ class FarmOrchestrator:
             "last_match_counted": r.last_match_counted,
             "ready_age": max(0.0, now - r.ready_since) if r.ready_since else 0.0,
             "search_age": max(0.0, now - r.search_since) if r.search_since else 0.0,
+            "match_key": list(r.match_key) if r.match_key is not None else None,
+            "match_started_age": max(0.0, now - r.match_started_at) if r.match_started_at else 0.0,
+            "match_generation": dict(r.match_generation),
         } for r in self.runtime.values()]
 
     def load_snapshot(self, items):
@@ -216,6 +254,7 @@ class FarmOrchestrator:
         for value in items or []:
             try:
                 ready_age = max(0.0, float(value.get("ready_age", 0.0)))
+                match_key = value.get("match_key")
                 self.runtime[str(value["batch_id"])] = BatchRuntime(
                     batch_id=str(value["batch_id"]),
                     ready=set(value.get("ready", [])),
@@ -227,6 +266,9 @@ class FarmOrchestrator:
                     last_match_counted=int(value.get("last_match_counted", 0)),
                     ready_since=now - ready_age if ready_age else None,
                     search_since=now - max(0.0, float(value.get("search_age", 0.0))) if value.get("search_age") else None,
+                    match_key=tuple(match_key) if match_key else None,
+                    match_started_at=now - max(0.0, float(value.get("match_started_age", 0.0))) if value.get("match_started_age") else None,
+                    match_generation={str(k): int(v) for k, v in value.get("match_generation", {}).items()},
                 )
             except (KeyError, TypeError, ValueError):
                 continue
