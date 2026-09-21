@@ -58,6 +58,17 @@ class Dashboard:
     try:
      if parts==["api","emergency-stop"]:outer.s.emergency_stop();return self._json({"ok":True})
      if parts==["api","kill-switch","clear"]:outer.s.clear_kill_switch();return self._json({"ok":True})
+     if len(parts)==4 and parts[:3]==["api","farm","batches"]:
+      batch_id=parts[3]; d=self._body()
+      action=str(d.get("action",""))
+      if action=="create": batch=outer.s.create_batch(str(d["id"]),[str(x) for x in d["account_ids"]],str(d.get("mode","manual")),d.get("target_xp"))
+      elif action=="start": batch=outer.s.start_batch(batch_id)
+      elif action=="stop": batch=outer.s.stop_batch(batch_id)
+      elif action=="ready": batch=outer.s.batch_player_ready(batch_id)
+      elif action=="search": batch=outer.s.batch_start_search(batch_id)
+      elif action=="found": batch=outer.s.batch_match_found(batch_id,d.get("match_id"))
+      else: return self._json({"error":"unknown batch action"},404)
+      return self._json({"ok":True,"batches":outer.s.farm.snapshot()})
      if len(parts)==4 and parts[:2]==["api","accounts"]:
       a=outer.s.get_account(parts[2])
       if not a:return self._json({"error":"account not found"},404)
@@ -68,6 +79,18 @@ class Dashboard:
        d=self._body();outer.s.set_route_from_position(a.id,str(d["map"]),str(d["goal"]),a.walkbot.last_position or (0,0,0))
       else:return self._json({"error":"unknown action"},404)
       return self._json({"ok":True})
+     if len(parts)==5 and parts[:2]==["api","routes"] and parts[3]=="nodes" and parts[4]=="delete":
+     if len(parts)==4 and parts[:2]==["api","routes"]:
+      map_name=parts[2];g=outer.s.route_store.get(map_name)
+      if parts[3]=="nodes":
+       d=self._body();g.add(Node(str(d["id"]),float(d["x"]),float(d["y"]),float(d.get("z",0))))
+      elif parts[3]=="edges":
+       d=self._body();g.connect(str(d["a"]),str(d["b"]))
+      elif parts[3]=="nodes" and False: pass
+      elif parts[3]=="save":outer.s.route_store.save(map_name,g);return self._json({"ok":True,"validation":g.validate()})
+      else:return self._json({"error":"unknown route action"},404)
+      return self._json(g.to_dict())
+     if len(parts)==4 and parts[:2]==["api","routes"]:
      if len(parts)==4 and parts[:2]==["api","routes"]:
       map_name=parts[2];g=outer.s.route_store.get(map_name)
       if parts[3]=="nodes":
