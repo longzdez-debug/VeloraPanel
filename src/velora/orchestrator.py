@@ -24,6 +24,7 @@ class BatchRuntime:
     match_started_at: float | None = None
     match_generation: dict[str, int] = field(default_factory=dict)
     accounted_match_key: tuple | None = None
+    recovery_claimed: bool = False
 
 class FarmOrchestrator:
     def __init__(self, supervisor):
@@ -107,7 +108,9 @@ class FarmOrchestrator:
         if runtime.match_key is None or now < runtime.next_retry:
             return False
         try:
-            self.s.farm.recover_farming_batch(batch.id)
+            if not runtime.recovery_claimed:
+                self.s.farm.recover_farming_batch(batch.id)
+                runtime.recovery_claimed = True
             for account_id in batch.account_ids:
                 self.s.start_account(account_id)
             runtime.ready.clear()
@@ -265,6 +268,8 @@ class FarmOrchestrator:
                     runtime.match_key = None
                     runtime.match_started_at = None
                     runtime.match_generation.clear()
+                    runtime.accounted_match_key = None
+                    runtime.recovery_claimed = False
                     runtime.ready_since = now
                     runtime.search_since = None
                     batch.state = BatchState.WAITING_FOR_READY
@@ -305,6 +310,7 @@ class FarmOrchestrator:
             "match_started_age": max(0.0, now - r.match_started_at) if r.match_started_at else 0.0,
             "match_generation": dict(r.match_generation),
             "accounted_match_key": list(r.accounted_match_key) if r.accounted_match_key is not None else None,
+            "recovery_claimed": r.recovery_claimed,
         } for r in self.runtime.values()]
 
     def load_snapshot(self, items):
@@ -328,6 +334,7 @@ class FarmOrchestrator:
                     match_started_at=now - max(0.0, float(value.get("match_started_age", 0.0))) if value.get("match_started_age") else None,
                     match_generation={str(k): int(v) for k, v in value.get("match_generation", {}).items()},
                     accounted_match_key=tuple(value["accounted_match_key"]) if value.get("accounted_match_key") else None,
+                    recovery_claimed=False,
                 )
             except (KeyError, TypeError, ValueError):
                 continue
