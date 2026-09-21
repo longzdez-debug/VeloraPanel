@@ -54,6 +54,16 @@ class Supervisor:
     def get_account(self, account_id):
         return next((x for x in self.accounts if x.id == account_id), None)
 
+    def schedule_account(self, account_id, priority=0, cooldown=0.0):
+        if not self.get_account(account_id):
+            raise KeyError(account_id)
+        self.scheduler.add(Job(f"account:{account_id}", account_id, priority=priority,
+                               cooldown=cooldown, enabled=True))
+        return f"account:{account_id}"
+
+    def unschedule_account(self, account_id):
+        self.scheduler.remove(f"account:{account_id}")
+
     def on_gsi(self, snap):
         for a in self.accounts:
             a.on_gsi(snap)
@@ -158,6 +168,14 @@ class Supervisor:
         try:
             while self.running:
                 now = monotonic()
+                job = self.scheduler.next(now)
+                if job is not None and not self.kill_switch:
+                    self.scheduler.mark_active(job.id)
+                    try:
+                        self.start_account(job.account_id)
+                        self.scheduler.mark_done(job.id, success=True)
+                    except Exception:
+                        self.scheduler.mark_done(job.id, success=False)
                 for a in self.accounts:
                     if a.process_id and not self.processes.alive(a.process_id):
                         self._process_death(a)
