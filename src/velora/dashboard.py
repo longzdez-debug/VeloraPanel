@@ -73,6 +73,7 @@ class Dashboard:
       a=outer.s.get_account(parts[2])
       if not a:return self._json({"error":"account not found"},404)
       if parts[3]=="start":outer.s.start_account(a.id)
+      elif parts[3]=="schedule":outer.s.schedule_account(a.id)
       elif parts[3]=="stop":outer.s.stop_account(a.id)
       elif parts[3]=="kill":a.walkbot.emergency_stop()
       elif parts[3]=="route":
