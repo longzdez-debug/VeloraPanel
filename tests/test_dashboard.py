@@ -81,3 +81,11 @@ def test_dashboard_exposes_walkbot_gsi_and_route_validation_surfaces():
     assert "routeValidation" in HTML
     assert "RECOVERY ACTIVE" in HTML
     assert "SERVER" in HTML and "PACKETS" in HTML
+
+
+def test_dashboard_batch_view_visualizes_member_states_and_errors():
+    from velora.dashboard import HTML
+
+    assert "const members=(x.account_ids||[])" in HTML
+    assert "stateClass(a.state)" in HTML
+    assert "x.errors||[]" in HTML
