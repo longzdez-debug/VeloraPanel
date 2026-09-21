@@ -68,3 +68,16 @@ def test_dashboard_event_buffer_is_bounded_and_structured():
     assert len(dashboard._events) == 500
     assert dashboard._events[-1]['message'] == 'event-599'
     assert dashboard._events[0]['id'] == 101
+
+
+def test_dashboard_exposes_walkbot_gsi_and_route_validation_surfaces():
+    from velora.dashboard import HTML
+    import inspect
+    from velora.dashboard import Dashboard
+
+    assert "walkbot_telemetry" in inspect.getsource(Dashboard.start)
+    assert "outer.s.gsi.snapshot()" in inspect.getsource(Dashboard.start)
+    assert "api/routes/" in HTML and "function validateRoute" in HTML
+    assert "routeValidation" in HTML
+    assert "RECOVERY ACTIVE" in HTML
+    assert "SERVER" in HTML and "PACKETS" in HTML
