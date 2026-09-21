@@ -171,7 +171,9 @@ class WalkBot:
 
  def tick(self,position=None):
   now=monotonic();self.last_tick=now
-  if not self.enabled or self.last_gsi is None or now-self.last_gsi>self.cfg.gsi_timeout:self.input.release_all();return
+  if not self.enabled or self.last_gsi is None or now-self.last_gsi>self.cfg.gsi_timeout:
+   self.movement_controller.stop()
+   return
   if self.fsm.state==WalkState.RECOVERING:self._recovery_tick(now);return
   if self.fsm.state not in (WalkState.NAVIGATING,WalkState.ARRIVING) or not self.path:return
   position=position or self.last_position
