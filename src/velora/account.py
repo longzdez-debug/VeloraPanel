@@ -58,6 +58,9 @@ class Account:
     def on_ready(self):
         if self.fsm.state == AccountState.STARTING:
             self.fsm.dispatch("ready")
+            # A successful GSI handshake means the current restart streak is over.
+            self.restart_count = 0
+            self.next_restart_at = 0.0
 
     def _is_menu(self, snap: GsiSnapshot) -> bool:
         activity = (snap.activity or "").lower()
