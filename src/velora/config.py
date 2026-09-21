@@ -19,6 +19,9 @@ class Config:
     input_enabled: bool = False
     input_require_foreground: bool = True
     process_start_timeout: float = 30.0
+    watchdog_enabled: bool = True
+    watchdog_max_restarts: int = 3
+    watchdog_backoff: float = 5.0
 
     @classmethod
     def from_env(cls):
@@ -33,4 +36,7 @@ class Config:
             _bool("VELORA_INPUT_ENABLED", False),
             _bool("VELORA_INPUT_REQUIRE_FOREGROUND", True),
             float(os.getenv("VELORA_PROCESS_START_TIMEOUT", "30")),
+            _bool("VELORA_WATCHDOG_ENABLED", True),
+            int(os.getenv("VELORA_WATCHDOG_MAX_RESTARTS", "3")),
+            float(os.getenv("VELORA_WATCHDOG_BACKOFF", "5")),
         )
