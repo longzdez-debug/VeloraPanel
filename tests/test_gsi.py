@@ -70,3 +70,38 @@ def test_gsi_extracts_player_xp_when_present():
         assert seen and seen[0].xp == 123
     finally:
         server.stop()
+
+
+def test_gsi_extracts_explicit_team_result_data():
+    import socket
+    from http.client import HTTPConnection
+    seen = []
+    server = GsiServer(host="127.0.0.1", port=0)
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        port = sock.getsockname()[1]
+    server.port = port
+    server.on_snapshot(seen.append)
+    server.start()
+    try:
+        body = json.dumps({
+            "provider": {"timestamp": 8},
+            "map": {
+                "name": "de_dust2", "phase": "gameover", "round": 30,
+                "team_ct": {"score": 16}, "team_t": {"score": 12},
+            },
+            "round": {"phase": "gameover"},
+            "player": {
+                "steamid": "1", "team": "CT", "activity": "playing",
+                "state": {"health": 0},
+            },
+        }).encode()
+        conn = HTTPConnection("127.0.0.1", port, timeout=2)
+        conn.request("POST", "/", body=body)
+        assert conn.getresponse().status == 204
+        conn.close()
+        assert seen[0].player_team == "CT"
+        assert seen[0].team_score == 16
+        assert seen[0].opponent_score == 12
+    finally:
+        server.stop()
