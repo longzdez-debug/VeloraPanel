@@ -303,3 +303,20 @@ def test_menu_transition_marks_active_match_game_over():
     account.on_gsi(GsiSnapshot(2.0, activity="menu", map_name="de_dust2", map_phase="menu", round_number=1))
     assert account.fsm.state == AccountState.MENU
     assert account.match_state() == MatchState.GAME_OVER
+
+
+def test_account_ignores_out_of_order_gsi_provider_timestamp():
+    from velora.account import Account
+    from velora.model import GsiSnapshot
+    from velora.walkbot import WalkBot
+
+    class Input:
+        def release_all(self): pass
+        def move(self, forward, back, left, right): pass
+
+    account = Account("a", "A", WalkBot(Input()))
+    account.on_gsi(GsiSnapshot(10.0, provider_timestamp=20, activity="playing", map_name="de_dust2", map_phase="live", round_phase="live", round_number=2))
+    account.on_gsi(GsiSnapshot(11.0, provider_timestamp=19, activity="playing", map_name="de_nuke", map_phase="gameover", round_phase="gameover", round_number=30, player_team="CT", team_score=16, opponent_score=10))
+    assert account.last_gsi == 10.0
+    assert account.match.map_name == "de_dust2"
+    assert account.last_match_result is None
