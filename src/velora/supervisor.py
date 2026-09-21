@@ -80,7 +80,12 @@ class Supervisor:
         self.scheduler.remove(f"account:{account_id}")
 
     def on_gsi(self, snap):
-        for a in self.accounts:
+        if snap.steam_id:
+            targets = [a for a in self.accounts if a.steam_id and a.steam_id == snap.steam_id]
+        else:
+            unbound = [a for a in self.accounts if not a.steam_id]
+            targets = unbound if len(unbound) == 1 else []
+        for a in targets:
             a.on_gsi(snap)
             if a.route_map and snap.map_name and snap.map_name != a.route_map:
                 a.walkbot.input.release_all()
@@ -190,6 +195,7 @@ class Supervisor:
         try:
             r = self.launcher.start(a.executable, a.launch_args, via_steam=self.config.launch_via_steam)
             a.process_id = r.identity.pid
+            a.last_gsi = None
             a.executable = r.executable
             a.started_at = monotonic()
             guard = self.window_guards.get(a.id)
@@ -227,6 +233,7 @@ class Supervisor:
                 pass
         a.process_id = None
         a.started_at = None
+        a.last_gsi = None
         self.resources.stop_account(a.id)
         a.walkbot.emergency_stop()
         guard = self.window_guards.get(a.id)
