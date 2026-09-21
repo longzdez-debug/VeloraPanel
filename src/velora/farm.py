@@ -164,6 +164,10 @@ class FarmManager:
         for account_id in batch.account_ids:
             if self.pool.farm[account_id].status == FarmStatus.IN_PROGRESS:
                 self.pool.mark(account_id, FarmStatus.PARTIAL)
+        # STOPPING is an execution phase, not a durable terminal state. Once
+        # resources/accounts have been released the batch is idle and can be
+        # started again without recreating it.
+        batch.state = BatchState.IDLE
         return batch
 
     def player_ready(self, batch_id):
