@@ -148,7 +148,7 @@ class Account:
             self.match_rounds = self.match.rounds_seen
             self.fsm.dispatch("game_over")
             self.match_terminal_latched = True
-            self.walkbot.input.release_all()
+            self.walkbot.stop_movement()
         elif previous == RoundState.LIVE and self.match.state == RoundState.OVER:
             if self.fsm.state == AccountState.IN_MATCH:
                 self.fsm.dispatch("round_end")
