@@ -1,18 +1,14 @@
 from __future__ import annotations
-
 from dataclasses import asdict, dataclass
 from pathlib import Path
 import socket
-
 from .steam import find_cs2, find_steam
-
 
 @dataclass(frozen=True)
 class Check:
     name: str
     ok: bool
     detail: str
-
 
 def _port_available(host: str, port: int) -> tuple[bool, str]:
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -26,7 +22,6 @@ def _port_available(host: str, port: int) -> tuple[bool, str]:
         return False, str(exc)
     finally:
         sock.close()
-
 
 def run_checks(data_dir="data", gsi_port=27100, dashboard_port=8765, host="127.0.0.1"):
     steam = find_steam()
@@ -42,7 +37,6 @@ def run_checks(data_dir="data", gsi_port=27100, dashboard_port=8765, host="127.0
         Check("gsi_port", gsi_ok, gsi_detail),
         Check("dashboard_port", dashboard_ok, dashboard_detail),
     ]
-
 
 def as_dict(checks):
     return [asdict(x) for x in checks]
