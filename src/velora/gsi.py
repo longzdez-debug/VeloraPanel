@@ -141,6 +141,10 @@ class GsiServer:
         self._server = ThreadingHTTPServer((self.host, self.port), Handler)
         Thread(target=self._server.serve_forever, daemon=True).start()
 
+    def health(self, stale_after: float = 3.0):
+        age = None if self.last_received is None else max(0.0, time.monotonic() - self.last_received)
+        return {"connected": self.last_received is not None, "stale": age is None or age > max(0.1, float(stale_after)), "age": age, "packet_count": self.packet_count, "error_count": self.error_count}
+
     def snapshot(self):
         age = None if self.last_received is None else max(0.0, time.monotonic() - self.last_received)
         return {
