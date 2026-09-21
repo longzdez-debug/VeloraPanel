@@ -54,6 +54,8 @@ class Supervisor:
         self.kill_switch = False
         self.window_guards = {}
         self.account_store = None
+        self._last_persist_at = 0.0
+        self._persist_interval = 0.5
 
     def attach_account_store(self, store):
         self.account_store = store
@@ -116,6 +118,7 @@ class Supervisor:
         self.scheduler.remove(f"account:{account_id}")
         self.pool.remove(account_id)
         self.accounts = [item for item in self.accounts if item.id != account_id]
+        self.window_guards.pop(account_id, None)
         if self.account_store is not None:
             profiles = [p for p in self.account_store.load() if p.id != account_id]
             self.account_store.save(profiles)
@@ -155,11 +158,16 @@ class Supervisor:
     def shuffle_lobby(self, lobby_id, account_ids):
         return self.lobbies.shuffle(lobby_id, list(account_ids))
 
-    def _save_farm(self):
+    def _save_farm(self, force=True):
+        now = monotonic()
+        if not force and now - self._last_persist_at < self._persist_interval:
+            return False
+        self._last_persist_at = now
         self.farm_store.save(self.farm.snapshot())
         self.runtime_store.save("scheduler", self.scheduler.snapshot())
         self.runtime_store.save("orchestrator", self.orchestrator.snapshot())
         self.stats_store.save(self.stats.snapshot())
+        return True
 
     def create_batch(self, batch_id, account_ids, mode="manual", target_xp=None, repeat=False, max_matches=None):
         result=self.farm.create_batch(batch_id, list(account_ids), mode=mode, target_xp=target_xp, repeat=repeat, max_matches=max_matches); self._save_farm(); return result
@@ -223,6 +231,8 @@ class Supervisor:
 
     def recover_batch(self, batch_id):
         batch = self.farm.recover_farming_batch(batch_id)
+        runtime = self.orchestrator.runtime.setdefault(batch.id, __import__("velora.orchestrator", fromlist=["BatchRuntime"]).BatchRuntime(batch.id))
+        runtime.recovery_claimed = True
         started = []
         try:
             for account_id in batch.account_ids:
@@ -236,6 +246,7 @@ class Supervisor:
                 except Exception:
                     pass
             self.farm.resources.stop_batch(batch.id)
+            runtime.recovery_claimed = False
             self._save_farm()
             raise
         self._save_farm()
@@ -249,6 +260,8 @@ class Supervisor:
             raise RuntimeError("cannot delete an active batch")
         self.farm.batches.pop(batch_id)
         self.orchestrator.runtime.pop(batch_id, None)
+        if batch_id in self.lobbies.lobbies:
+            self.lobbies.disband(batch_id)
         self._save_farm()
 
     def set_route(self, account_id, map_name, start, goal):
@@ -404,7 +417,7 @@ class Supervisor:
                         except Exception:
                             self.scheduler.mark_done(job.id, success=False, now=scheduler_now)
                 self.orchestrator.tick(now)
-                self._save_farm()
+                self._save_farm(force=False)
                 for a in self.accounts:
                     if a.process_id and not self.processes.alive(a.process_id):
                         self._process_death(a)
